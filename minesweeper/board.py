@@ -23,9 +23,10 @@ class Board:
     
     def __init__(self, grid_size=(10, 10), num_bombs=10):
         self.w, self.h = grid_size
-        self._board = self.__make_board(grid_size, num_bombs)
         self._covered_board = np.full((self.w, self.h), True)
+        self._board = self.__make_board(grid_size, num_bombs)
         self._state = Board.State.Playing
+        
 
     def __make_board(self, grid_size, num_bombs):
         # Place bombs randomly on grid
@@ -48,19 +49,29 @@ class Board:
         ))
 
         self._board = np.hstack((np.full((self.h+2,1), -2), self._board, np.full((self.h+2,1), -2)))
-        print(self._board)
 
         return self._board
 
     def tile_click(self, coord):
-        is_covered = self._covered_board[coord]
+        is_covered = self._covered_board[coord[0]-1, coord[1]-1]
         assert is_covered, "Found tile is not Covered!"
         tile = Board.Tile(self._board[coord[0]+1, coord[1]+1])
-
-        self._covered_board[coord]
-
+        x, y = coord
+        
+        self._covered_board[x-1, y-1] = False
+        
         if tile == Board.Tile.Bomb:
-            self.state = State.GameOver
+            self.state = Board.State.GameOver
+            return tile
+        
+        
+        if self._board[coord] > 0:
+            return tile
+        
+        for i in range(x-1, x+2):
+            for j in range(y-1, y+2):
+                if self._board[i, j] >= 0 and self._covered_board[i-1, j-1] == True:
+                    self.tile_click((i, j))
 
         return tile
 
@@ -83,5 +94,7 @@ class Board:
     
 if __name__ == "__main__":
     game = Board()
-    tile = game.tile_click((3, 3))
+    tile = game.tile_click((2, 2))
+    print(game._covered_board)
+    print(game._board)
     print(tile)
