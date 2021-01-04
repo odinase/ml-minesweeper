@@ -23,8 +23,8 @@ class Board:
     
     def __init__(self, grid_size=(10, 10), num_bombs=10):
         self.w, self.h = grid_size
-        self._board = self.__make_board(grid_size, num_bombs)
         self._covered_board = np.full((self.w, self.h), True)
+        self._board = self.__make_board(grid_size, num_bombs)
         self._state = Board.State.Playing
 
     def __make_board(self, grid_size, num_bombs):
@@ -48,8 +48,7 @@ class Board:
         ))
 
         self._board = np.hstack((np.full((self.h+2,1), -2), self._board, np.full((self.h+2,1), -2)))
-        print(self._board)
-
+        self.print_board()
         return self._board
 
     def tile_click(self, coord):
@@ -57,10 +56,10 @@ class Board:
         assert is_covered, "Found tile is not Covered!"
         tile = Board.Tile(self._board[coord[0]+1, coord[1]+1])
 
-        self._covered_board[coord]
+        self._covered_board[coord] = False
 
         if tile == Board.Tile.Bomb:
-            self.state = State.GameOver
+            self.state = Board.State.GameOver
 
         return tile
 
@@ -75,13 +74,23 @@ class Board:
         return self._board[max(x-1,0):min(x+2,self.w+1), max(y-1,0):min(y+2,self.h+1)].flatten()
 
     def print_board(self):
-        print('|', end='')
         for i in range(1, self.w+1):
+            print('|', end='')
             for j in range(1, self.h+1):
-                pass
+                t = int(self._board[i,j])
+                if self._covered_board[i-1,j-1]:
+                    t = "x"
+                print(f" {t:>2} ", end='')
+            print('|')
+        print('')
 
     
 if __name__ == "__main__":
     game = Board()
     tile = game.tile_click((3, 3))
+
     print(tile)
+    game.print_board()
+    tile = game.tile_click((5, 5))
+
+    game.print_board()
