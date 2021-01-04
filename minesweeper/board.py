@@ -23,9 +23,11 @@ class Board:
     
     def __init__(self, grid_size=(10, 10), num_bombs=10):
         self.w, self.h = grid_size
-        self._covered_board = np.full((self.w, self.h), True)
+        self._covered_board = np.full((self.w+2, self.h+2), False)
+        self._covered_board[1:(self.w+1), 1:(self.h+1)] = True
         self._board = self.__make_board(grid_size, num_bombs)
         self._state = Board.State.Playing
+        
 
     def __make_board(self, grid_size, num_bombs):
         # Place bombs randomly on grid
@@ -48,18 +50,27 @@ class Board:
         ))
 
         self._board = np.hstack((np.full((self.h+2,1), -2), self._board, np.full((self.h+2,1), -2)))
-        self.print_board()
         return self._board
 
     def tile_click(self, coord):
         is_covered = self._covered_board[coord]
         assert is_covered, "Found tile is not Covered!"
-        tile = Board.Tile(self._board[coord[0]+1, coord[1]+1])
-
-        self._covered_board[coord] = False
-
+        tile = Board.Tile(self._board[coord])
+        x, y = coord
+        
+        self._covered_board[x, y] = False
+        
         if tile == Board.Tile.Bomb:
             self.state = Board.State.GameOver
+            return tile
+        
+        if self._board[coord] > 0:
+            return tile
+        
+        for i in range(max(x-1, 0), min(x+2, self.w+1)):
+            for j in range(max(y-1, 0), min(y+2, self.h+1)):
+                if self._board[i, j] >= 0 and self._covered_board[i, j] == True:
+                    self.tile_click((i, j))
 
         return tile
 
@@ -78,7 +89,7 @@ class Board:
             print('|', end='')
             for j in range(1, self.h+1):
                 t = int(self._board[i,j])
-                if self._covered_board[i-1,j-1]:
+                if self._covered_board[i,j]:
                     t = "x"
                 print(f" {t:>2} ", end='')
             print('|')
@@ -87,10 +98,9 @@ class Board:
     
 if __name__ == "__main__":
     game = Board()
-    tile = game.tile_click((3, 3))
-
+    tile = game.tile_click((2, 2))
     print(tile)
     game.print_board()
-    tile = game.tile_click((5, 5))
-
-    game.print_board()
+    # print(game._covered_board)
+    # print(game._board)
+    # print(tile)
