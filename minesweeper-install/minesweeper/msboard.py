@@ -161,13 +161,13 @@ class MSBoard(object):
     def board_msg(self):
         """Structure a board as in print_board."""
         board_str = "s\t\t"
-        for i in xrange(self.board_width):
+        for i in range(self.board_width):
             board_str += str(i)+"\t"
         board_str = board_str.expandtabs(4)+"\n\n"
 
-        for i in xrange(self.board_height):
+        for i in range(self.board_height):
             temp_line = str(i)+"\t\t"
-            for j in xrange(self.board_width):
+            for j in range(self.board_width):
                 if self.info_map[i, j] == 9:
                     temp_line += "@\t"
                 elif self.info_map[i, j] == 10:
