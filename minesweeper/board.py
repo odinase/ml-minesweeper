@@ -144,9 +144,9 @@ class Board:
         for j in range(0, 4*self.h+7):
             print("-", end='')
         print()
-        for i in range(1, self.w+1):
+        for i in range(2, self.w+2):
             print(f'{i}: |', end='')
-            for j in range(1, self.h+1):
+            for j in range(2, self.h+2):
                 t = int(self._board[i,j])
                 if self._covered_board[i,j]:
                     t = "x"
@@ -159,10 +159,10 @@ if __name__ == "__main__":
     
     
     dataPoints = []
-    game = Board()
+    game = Board(num_bombs = 20)
     iii = 0
     iiii = 0
-    while(len(dataPoints) < 1000000):
+    while(len(dataPoints) < 100000):
         a = np.random.randint(2, 12)
         b = np.random.randint(2, 12)
         game.tile_click((a, b))
@@ -250,9 +250,9 @@ if __name__ == "__main__":
                                     if i == x and j == y:
                                         continue
                                     if(game._covered_board[i, j] == True):
-                                        features.append(100)
+                                        features.append(20)
                                     elif(game._board[i, j] == -2):
-                                        features.append(-1000)
+                                        features.append(20)
                                     else:
                                         features.append(game._board[i, j])  
                             z = probability_model.predict(np.array(features).reshape(1, -1))[0][1]*100
