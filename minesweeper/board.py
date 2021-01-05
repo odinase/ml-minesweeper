@@ -86,11 +86,6 @@ class Board:
 
         return tile
 
-    def uncover_tile(tile):
-        pass
-
-    
-
     def neighbours(self, coords):
         x, y = coords
         assert 0 <= x < self.w and 0 <= y < self.h, f"out of bound: x: {x} y: {y}"
@@ -176,11 +171,7 @@ if __name__ == "__main__":
               loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
               metrics=['accuracy'])
     
-    model.fit(X_train, Y_train, epochs=100)
-    
-    
-    
-    
+    model.fit(X_train, Y_train, epochs=100)    
     
     probability_model = tf.keras.Sequential([model, 
                                          tf.keras.layers.Softmax()])
@@ -228,10 +219,3 @@ if __name__ == "__main__":
             b = np.random.randint(1, 11)
             game.tile_click((a, b))
             game.print_board()
-    
-    
-    
-    
-    
-    
-    
