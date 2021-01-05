@@ -155,17 +155,16 @@ if __name__ == "__main__":
     print("")
     clf = MLPClassifier(random_state=1, max_iter=3000).fit(X_train, Y_train)
     
-    game.reset()
-    game.tile_click((1,1))
-    
-    probs = []
-    
+    probs = []    
     summ = 99
-    while(sum(sum(game._covered_board)) == 99):
+
+    while(summ == 99):
         a = np.random.randint(1, 11)
         b = np.random.randint(1, 11)
+        game.reset() 
         game.tile_click((a, b))
-        if (sum(sum(game._covered_board)) == 99):
+        summ = sum(sum(game._covered_board))
+        if summ == 99:
             game.reset()
             continue
         for y in range(1, 11):
@@ -177,17 +176,18 @@ if __name__ == "__main__":
                                     if i == x and j == y:
                                         continue
                                     if(game._covered_board[i, j] == True):
-                                        features.append(1000)
+                                        features.append(100)
                                     elif(game._board[i, j] == -2):
-                                        features.append(1000)
+                                        features.append(-1000)
                                     else:
                                         features.append(game._board[i, j])
-                            z = clf.predict_proba(np.array(features).reshape(1, -1))[0][0]
+                            z = clf.predict_proba(np.array(features).reshape(1, -1))[0][1]
                             print(features)
                             print(z)
                             print()
-                            probs.append(z)
-        print(np.array(probs).shape)
+                            probs.append(round(z, 4)*100)
+        probs = np.sort(probs, axis = None)
+        print(probs)
     
     
     
