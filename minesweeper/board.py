@@ -2,6 +2,9 @@ from enum import Enum
 import numpy as np
 
 from sklearn.neural_network import MLPClassifier
+import tensorflow as tf
+from tensorflow.keras import Sequential
+from tensorflow.keras.layers import Conv2D, Dense, Flatten
 
 class Board:
     class Tile(Enum):
@@ -94,8 +97,16 @@ class Board:
         return self._board[max(x-1,0):min(x+2,self.w+1), max(y-1,0):min(y+2,self.h+1)].flatten()
 
     def print_board(self):
+        for j in range(0, self.h+1):
+            if j == 0:
+                print("-", end = '')
+            print(f"{j: > 2} ", end=' ')
+        print()
+        for j in range(0, 4*self.h+7):
+            print("-", end='')
+        print()
         for i in range(1, self.w+1):
-            print('|', end='')
+            print(f'{i}: |', end='')
             for j in range(1, self.h+1):
                 t = int(self._board[i,j])
                 if self._covered_board[i,j]:
@@ -112,7 +123,7 @@ if __name__ == "__main__":
     game = Board()
     iii = 0
     iiii = 0
-    while(len(dataPoints) < 10000):
+    while(len(dataPoints) < 1000000):
         a = np.random.randint(1, 11)
         b = np.random.randint(1, 11)
         game.tile_click((a, b))
@@ -150,25 +161,44 @@ if __name__ == "__main__":
     
     X_train = dataPoints[:,:-1]
     Y_train = dataPoints[:,-1]
-    
     print(round((iiii/iii)*100, 2))
     print("")
-    clf = MLPClassifier(random_state=1, max_iter=3000).fit(X_train, Y_train)
+    print("Starting training....")
+    print("")
     
-    probs = []    
+    
+    model = Sequential()
+    model.add(Dense(8, activation='relu'))
+    model.add(Dense(4, activation='relu'))
+    model.add(Dense(2))
+    
+    model.compile(optimizer='adam',
+              loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+              metrics=['accuracy'])
+    
+    model.fit(X_train, Y_train, epochs=100)
+    
+    
+    
+    
+    
+    probability_model = tf.keras.Sequential([model, 
+                                         tf.keras.layers.Softmax()])
+    
+    print("Training complete. I am at your service, Master!")
     summ = 99
-
-    while(summ == 99):
-        a = np.random.randint(1, 11)
-        b = np.random.randint(1, 11)
-        game.reset() 
-        game.tile_click((a, b))
-        summ = sum(sum(game._covered_board))
-        if summ == 99:
-            game.reset()
-            continue
-        for y in range(1, 11):
-            for x in range(1, 11):
+    game.reset() 
+    game.state = Board.State.Playing
+    a = np.random.randint(1, 11)
+    b = np.random.randint(1, 11)
+    game.tile_click((a, b))
+    game.print_board()
+    print((a, b))
+    while(True):
+        probs = []    
+        coords = []
+        for x in range(1, 11):
+            for y in range(1, 11):
                 features = []
                 if game._covered_board[x, y] == True:
                             for i in range(x-1, x+2):
@@ -181,17 +211,23 @@ if __name__ == "__main__":
                                         features.append(-1000)
                                     else:
                                         features.append(game._board[i, j])
-                            z = clf.predict_proba(np.array(features).reshape(1, -1))[0][1]
-                            print(features)
-                            print(z)
-                            print()
-                            probs.append(round(z, 4)*100)
-        probs = np.sort(probs, axis = None)
-        print(probs)
-    
-    
-    
-    
+                            z = probability_model.predict(np.array(features).reshape(1, -1))[0][0]
+                            # print(z)
+                            probs.append(z)
+                            coords.append((x, y))
+        tile = game.tile_click(coords[np.argmax(probs)])
+        game.print_board()
+        print(coords[np.argmax(probs)])
+        input()
+        if game.state == Board.State.GameOver:
+            print()
+            print("You lost... RIP")
+            game.reset() 
+            game.state = Board.State.Playing
+            a = np.random.randint(1, 11)
+            b = np.random.randint(1, 11)
+            game.tile_click((a, b))
+            game.print_board()
     
     
     
