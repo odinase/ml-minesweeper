@@ -4,6 +4,8 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.keras import Sequential
 from tensorflow.keras.layers import Dense
+from sklearn import preprocessing
+from sklearn.ensemble import RandomForestClassifier
 import graphics as g
 
 class GUI:
@@ -67,7 +69,8 @@ class Board:
         GameOver = 1
         Won = 2
     
-    def __init__(self, grid_size=(10, 10), num_bombs=10):
+    def __init__(self, grid_size=(10, 10), num_bombs=10, wallSize = 2):
+        self.wallSize = wallSize
         self.grid_size = grid_size
         self.num_bombs = num_bombs
         self.w, self.h = grid_size
@@ -77,8 +80,8 @@ class Board:
         self._state = Board.State.Playing
         
     def reset(self):
-        self._covered_board = np.full((self.w+4, self.h+4), False)
-        self._covered_board[2:(self.w+2), 2:(self.h+2)] = True
+        self._covered_board = np.full((self.w+self.wallSize*2, self.h+self.wallSize*2), False)
+        self._covered_board[self.wallSize:(self.w+self.wallSize), self.wallSize:(self.h+self.wallSize)] = True
         self._board = self.__make_board()
         self._state = Board.State.Playing
         
@@ -96,16 +99,14 @@ class Board:
                 neighs = self.neighbours((i, j))
                 num_bombs = sum([1 for n in neighs if n == -1])
                 self._board[i, j] = num_bombs
-
-        self._board = np.vstack((
-            np.full(self.w, -2),
-            np.full(self.w, -2),
-            self._board,
-            np.full(self.w, -2),
-            np.full(self.w, -2)
-        ))
-
-        self._board = np.hstack((np.full((self.h+4,1), -2), np.full((self.h+4,1), -2), self._board, np.full((self.h+4,1), -2), np.full((self.h+4,1), -2)))
+        
+        for i in range(self.wallSize):
+            self._board = np.vstack((
+                np.full(self.w, -2),
+                self._board,
+                np.full(self.w, -2),
+            ))
+            self._board = np.hstack((np.full((self.h+self.wallSize*2,1), -2), self._board, np.full((self.h+self.wallSize*2,1), -2)))
         return self._board
 
     def tile_click(self, coord):
@@ -123,8 +124,8 @@ class Board:
         if self._board[coord] > 0:
             return tile
         
-        for i in range(max(x-2, 0), min(x+3, self.w+2)):
-            for j in range(max(y-2, 0), min(y+3, self.h+2)):
+        for i in range(max(x-self.wallSize, 0), min(x+self.wallSize+1, self.w+self.wallSize)):
+            for j in range(max(y-self.wallSize, 0), min(y+1+self.wallSize, self.h+self.wallSize)):
                 if self._board[i, j] >= 0 and self._covered_board[i, j] == True:
                     self.tile_click((i, j))
 
@@ -132,7 +133,6 @@ class Board:
 
     def neighbours(self, coords):
         x, y = coords
-        # assert 2 <= x < self.w+2 and 2 <= y < self.h+2, f"out of bound: x: {x} y: {y}"
         return self._board[max(x-1,0):min(x+2,self.w+1), max(y-1,0):min(y+2,self.h+1)].flatten()
 
     def print_board(self):
@@ -144,9 +144,9 @@ class Board:
         for j in range(0, 4*self.h+7):
             print("-", end='')
         print()
-        for i in range(2, self.w+2):
+        for i in range(self.wallSize, self.w+self.wallSize):
             print(f'{i}: |', end='')
-            for j in range(2, self.h+2):
+            for j in range(self.wallSize, self.h+self.wallSize):
                 t = int(self._board[i,j])
                 if self._covered_board[i,j]:
                     t = "x"
@@ -159,60 +159,56 @@ if __name__ == "__main__":
     
     
     dataPoints = []
-    game = Board(num_bombs = 20)
-    iii = 0
-    iiii = 0
+    wallSize = 3
+    neighRange = 2
+    game = Board(num_bombs = 20, wallSize = wallSize)
     while(len(dataPoints) < 100000):
-        a = np.random.randint(2, 12)
-        b = np.random.randint(2, 12)
-        game.tile_click((a, b))
-        iii += 1
-        if (sum(sum(game._covered_board)) == 99):
-            iiii += 1
-            game.reset()
+        a = np.random.randint(wallSize, 10+wallSize)
+        b = np.random.randint(wallSize, 10+wallSize)
+        tile = game.tile_click((a, b))
+        if tile == Board.Tile.Bomb:
             continue
-        for y in range(2, 12):
-            for x in range(2, 12):
-                    appendList = []
+        for y in range(wallSize, 10+wallSize):
+            for x in range(wallSize, 10+wallSize):
+                    features = np.empty((0,), dtype=int)
                     numInList = False
                     if game._covered_board[x, y] == True:
-                        for i in range(x-2, x+3):
-                            for j in range(y-2, y+3):
+                        for i in range(x-neighRange, x+neighRange+1):
+                            for j in range(y-neighRange, y+1+neighRange):
+                                one_hot = np.zeros(11, dtype=int)
                                 if i == x and j == y:
                                     continue
                                 if(game._covered_board[i, j] == True):
-                                    appendList.append(100)
+                                    one_hot[9] = 1
+                                    features = np.append(features, one_hot)
                                 elif(game._board[i, j] == -2):
-                                    appendList.append(-1000)
+                                    one_hot[10] = 1
+                                    features = np.append(features, one_hot)
                                 else:
-                                    appendList.append(game._board[i, j])
-                                    numInList = True
-                    if numInList:   
+                                    one_hot[int(game._board[i, j])] = 1
+                                    features = np.append(features, one_hot)
                         if game._board[x, y] == -1:
-                            appendList.append(1)
+                            features = np.append(features, 1)
                         else:
-                            appendList.append(0)
-                        dataPoints.append(appendList)
+                            features = np.append(features, 0)
+                        dataPoints.append(features)
                         
                             
         game.reset()
     dataPoints = np.array([np.array(a) for a in dataPoints])
-    
     X_train = dataPoints[:,:-1]
     Y_train = dataPoints[:,-1]
     
-    print(Y_train.size)
-    print(sum(Y_train))
-    print(sum(Y_train)/Y_train.shape[0])
-    print(round((iiii/iii)*100, 2))
     print("")
     print("Starting training....")
     print("")
     
     
     model = Sequential()
-    model.add(Dense(8, activation='relu'))
-    model.add(Dense(4, activation='relu'))
+    model.add(Dense(110, activation='relu'))
+    model.add(Dense(64, activation='relu'))
+    model.add(Dense(32, activation='relu'))
+    model.add(Dense(16, activation='relu'))
     model.add(Dense(2))
     
     model.compile(optimizer='adam',
@@ -222,42 +218,47 @@ if __name__ == "__main__":
     model.fit(X_train, Y_train, epochs=100)    
     
     probability_model = tf.keras.Sequential([model, 
-                                         tf.keras.layers.Softmax()])
+                                          tf.keras.layers.Softmax()])
+    
+    # clf = RandomForestClassifier()
+    # clf.fit(X_train, Y_train)
     
     print("Training complete. I am at your service, Master!")
-    summ = 99
     game.reset() 
     game.state = Board.State.Playing
-    a = np.random.randint(2, 12)
-    b = np.random.randint(2, 12)
+    a = np.random.randint(wallSize, 10+wallSize)
+    b = np.random.randint(wallSize, 10+wallSize)
     game.tile_click((a, b))
-    game.print_board()
     
     graphics = GUI(10)
     while(True):
         probs = []    
         coords = []
-        for x in range(2, 12):
-            for y in range(2, 12):
-                features = []
+        for x in range(wallSize, 10+wallSize):
+            for y in range(wallSize, 10+wallSize):
+                features = np.empty((0,), dtype=int)
                 if game._covered_board[x, y] == True:
-                            for i in range(x-2, x+3):
-                                for j in range(y-2, y+3):
+                            for i in range(x-wallSize, x+1+wallSize):
+                                for j in range(y-wallSize, y+1+wallSize):
+                                    one_hot = np.zeros(11)
                                     if i == x and j == y:
                                         continue
                                     if(game._covered_board[i, j] == True):
-                                        features.append(20)
+                                        one_hot[9] = 1
+                                        features = np.append(features, one_hot)
                                     elif(game._board[i, j] == -2):
-                                        features.append(20)
+                                        one_hot[10] = 1
+                                        features = np.append(features, one_hot)
                                     else:
-                                        features.append(game._board[i, j])  
+                                        one_hot[int(game._board[i, j])] = 1
+                                        features = np.append(features, one_hot)
                             z = probability_model.predict(np.array(features).reshape(1, -1))[0][1]*100
+                            # z = clf.predict_proba(np.array(features).reshape(1, -1))[0][1]*100
                             probs.append(z)
                             coords.append((x, y))
                             
         graphics.loadMap(game._board, game._covered_board, probs, coords)
         graphics.loadColor(coords[np.argmin(probs)][0], coords[np.argmin(probs)][1], 'yellow')
-        game.print_board()
         graphics.win.getMouse()
         tile = game.tile_click(coords[np.argmin(probs)])
         if game.state == Board.State.GameOver:
@@ -265,7 +266,13 @@ if __name__ == "__main__":
             print("You lost... RIP")
             game.reset() 
             game.state = Board.State.Playing
-            a = np.random.randint(2, 12)
-            b = np.random.randint(2, 12)
+            a = np.random.randint(wallSize, 10+wallSize)
+            b = np.random.randint(wallSize, 10+wallSize)
             game.tile_click((a, b))
-            game.print_board()
+    
+    
+    
+    
+    
+    
+    
