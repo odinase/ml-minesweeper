@@ -1,6 +1,9 @@
 from minesweeper.board import Board
 from ml.visualization import GUI
 import numpy as np
+import tensorflow as tf
+from tensorflow.keras import Sequential
+from tensorflow.keras.layers import Conv2D, Dense, Flatten
 
 from sklearn.neural_network import MLPClassifier
 import tensorflow as tf
