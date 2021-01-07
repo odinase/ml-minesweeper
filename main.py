@@ -1,4 +1,5 @@
 from minesweeper.board import Board
+from ml.visualization import GUI
 import numpy as np
 
 from sklearn.neural_network import MLPClassifier
@@ -7,42 +8,37 @@ from tensorflow.keras import Sequential
 from tensorflow.keras.layers import Conv2D, Dense, Flatten
 
 
-if __name__ == "__main__":
+def generate_data_point(game, num_data_points=1000):
     dataPoints = []
-    game = Board()
     iii = 0
     iiii = 0
-    while(len(dataPoints) < 1000):
-        a = np.random.randint(1, 11)
-        b = np.random.randint(1, 11)
+    while(len(dataPoints) < num_data_points):
+        a = np.random.randint(2, 12)
+        b = np.random.randint(2, 12)
         game.tile_click((a, b))
         iii += 1
-        if (sum(sum(game._covered_board)) == 99):
-            iiii += 1
-            game.reset()
-            continue
-        for y in range(1, 11):
-            for x in range(1, 11):
-                    appendList = []
-                    numInList = False
-                    if game._covered_board[x, y] == True:
-                        for i in range(x-1, x+2):
-                            for j in range(y-1, y+2):
-                                if i == x and j == y:
-                                    continue
-                                if(game._covered_board[i, j] == True):
-                                    appendList.append(100)
-                                elif(game._board[i, j] == -2):
-                                    appendList.append(-1000)
-                                else:
-                                    appendList.append(game._board[i, j])
-                                    numInList = True
-                    if numInList:   
-                        if game._board[x, y] == -1:
-                            appendList.append(1)
-                        else:
-                            appendList.append(0)
-                        dataPoints.append(appendList)
+        for y in range(2, 12):
+            for x in range(2, 12):
+                appendList = []
+                numInList = False
+                if game._covered_board[x, y] == True:
+                    for i in range(x-2, x+3):
+                        for j in range(y-2, y+3):
+                            if i == x and j == y:
+                                continue
+                            if(game._covered_board[i, j] == True):
+                                appendList.append(100)
+                            elif(game._board[i, j] == -2):
+                                appendList.append(-1000)
+                            else:
+                                appendList.append(game._board[i, j])
+                                numInList = True
+                if numInList:   
+                    if game._board[x, y] == -1:
+                        appendList.append(1)
+                    else:
+                        appendList.append(0)
+                    dataPoints.append(appendList)
                         
                             
         game.reset()
@@ -50,11 +46,25 @@ if __name__ == "__main__":
     
     X_train = dataPoints[:,:-1]
     Y_train = dataPoints[:,-1]
+    
+    print(Y_train.size)
+    print(sum(Y_train))
+    print(sum(Y_train)/Y_train.shape[0])
     print(round((iiii/iii)*100, 2))
+
+    return X_train, Y_train
+
+
+if __name__ == "__main__":
+    game = Board(num_bombs = 20)
+    num_data_points = 1000
+    X_train, Y_train = generate_data_point(game, num_data_points=1000)
+    
     print("")
     print("Starting training....")
     print("")
     
+    # Train
     
     model = Sequential()
     model.add(Dense(8, activation='relu'))
@@ -74,49 +84,44 @@ if __name__ == "__main__":
     summ = 99
     game.reset() 
     game.state = Board.State.Playing
-    a = np.random.randint(1, 11)
-    b = np.random.randint(1, 11)
+    a = np.random.randint(2, 12)
+    b = np.random.randint(2, 12)
     game.tile_click((a, b))
     game.print_board()
-    print((a, b))
+    
+    graphics = GUI(10)
     while(True):
         probs = []    
         coords = []
-        for x in range(1, 11):
-            for y in range(1, 11):
+        for x in range(2, 12):
+            for y in range(2, 12):
                 features = []
                 if game._covered_board[x, y] == True:
-                            for i in range(x-1, x+2):
-                                for j in range(y-1, y+2):
-                                    if i == x and j == y:
-                                        continue
-                                    if(game._covered_board[i, j] == True):
-                                        features.append(100)
-                                    elif(game._board[i, j] == -2):
-                                        features.append(-1000)
-                                    else:
-                                        features.append(game._board[i, j])
-                            z = probability_model.predict(np.array(features).reshape(1, -1))[0][0]
-                            # print(z)
-                            probs.append(z)
-                            coords.append((x, y))
-        tile = game.tile_click(coords[np.argmax(probs)])
+                    for i in range(x-2, x+3):
+                        for j in range(y-2, y+3):
+                            if i == x and j == y:
+                                continue
+                            if(game._covered_board[i, j] == True):
+                                features.append(20)
+                            elif(game._board[i, j] == -2):
+                                features.append(20)
+                            else:
+                                features.append(game._board[i, j])  
+                    z = probability_model.predict(np.array(features).reshape(1, -1))[0][1]*100
+                    probs.append(z)
+                    coords.append((x, y))
+                            
+        graphics.loadMap(game._board, game._covered_board, probs, coords)
+        graphics.loadColor(coords[np.argmin(probs)][0], coords[np.argmin(probs)][1], 'yellow')
         game.print_board()
-        print(coords[np.argmax(probs)])
-        input()
+        graphics.win.getMouse()
+        tile = game.tile_click(coords[np.argmin(probs)])
         if game.state == Board.State.GameOver:
             print()
             print("You lost... RIP")
             game.reset() 
             game.state = Board.State.Playing
-            a = np.random.randint(1, 11)
-            b = np.random.randint(1, 11)
+            a = np.random.randint(2, 12)
+            b = np.random.randint(2, 12)
             game.tile_click((a, b))
             game.print_board()
-    
-    
-    
-    
-    
-    
-    
