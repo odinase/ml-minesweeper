@@ -159,25 +159,22 @@ if __name__ == "__main__":
     
     
     dataPoints = []
-    game = Board(num_bombs = 20)
-    iii = 0
-    iiii = 0
+    wallSize = 3
+    neighRange = 2
+    game = Board(num_bombs = 20, wallSize = wallSize)
     while(len(dataPoints) < 100000):
-        a = np.random.randint(2, 12)
-        b = np.random.randint(2, 12)
-        game.tile_click((a, b))
-        iii += 1
-        if (sum(sum(game._covered_board)) == 99):
-            iiii += 1
-            game.reset()
+        a = np.random.randint(wallSize, 10+wallSize)
+        b = np.random.randint(wallSize, 10+wallSize)
+        tile = game.tile_click((a, b))
+        if tile == Board.Tile.Bomb:
             continue
-        for y in range(2, 12):
-            for x in range(2, 12):
+        for y in range(wallSize, 10+wallSize):
+            for x in range(wallSize, 10+wallSize):
                     features = np.empty((0,), dtype=int)
                     numInList = False
                     if game._covered_board[x, y] == True:
-                        for i in range(x-2, x+3):
-                            for j in range(y-2, y+3):
+                        for i in range(x-neighRange, x+neighRange+1):
+                            for j in range(y-neighRange, y+1+neighRange):
                                 one_hot = np.zeros(11, dtype=int)
                                 if i == x and j == y:
                                     continue
@@ -231,24 +228,22 @@ if __name__ == "__main__":
     # clf.fit(X_train, Y_train)
     
     print("Training complete. I am at your service, Master!")
-    summ = 99
     game.reset() 
     game.state = Board.State.Playing
-    a = np.random.randint(2, 12)
-    b = np.random.randint(2, 12)
+    a = np.random.randint(wallSize, 10+wallSize)
+    b = np.random.randint(wallSize, 10+wallSize)
     game.tile_click((a, b))
-    # game.print_board()
     
     graphics = GUI(10)
     while(True):
         probs = []    
         coords = []
-        for x in range(2, 12):
-            for y in range(2, 12):
+        for x in range(wallSize, 10+wallSize):
+            for y in range(wallSize, 10+wallSize):
                 features = np.empty((0,), dtype=int)
                 if game._covered_board[x, y] == True:
-                            for i in range(x-2, x+3):
-                                for j in range(y-2, y+3):
+                            for i in range(x-wallSize, x+1+wallSize):
+                                for j in range(y-wallSize, y+1+wallSize):
                                     one_hot = np.zeros(11)
                                     if i == x and j == y:
                                         continue
@@ -268,7 +263,6 @@ if __name__ == "__main__":
                             
         graphics.loadMap(game._board, game._covered_board, probs, coords)
         graphics.loadColor(coords[np.argmin(probs)][0], coords[np.argmin(probs)][1], 'yellow')
-        # game.print_board()
         graphics.win.getMouse()
         tile = game.tile_click(coords[np.argmin(probs)])
         if game.state == Board.State.GameOver:
@@ -276,10 +270,9 @@ if __name__ == "__main__":
             print("You lost... RIP")
             game.reset() 
             game.state = Board.State.Playing
-            a = np.random.randint(2, 12)
-            b = np.random.randint(2, 12)
+            a = np.random.randint(wallSize, 10+wallSize)
+            b = np.random.randint(wallSize, 10+wallSize)
             game.tile_click((a, b))
-            # game.print_board()
     
     
     
