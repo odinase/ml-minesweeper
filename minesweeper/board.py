@@ -26,8 +26,8 @@ class Board:
         self.grid_size = grid_size
         self.num_bombs = num_bombs
         self.w, self.h = grid_size
-        self._covered_board = np.full((self.w+4, self.h+4), False)
-        self._covered_board[2:(self.w+2), 2:(self.h+2)] = True
+        self._covered_board = np.full((self.w+2*wallSize, self.h+2*wallSize), False)
+        self._covered_board[wallSize:(self.w+wallSize), wallSize:(self.h+wallSize)] = True
         self._board = self.__make_board()
         self._state = Board.State.Playing
     
@@ -59,8 +59,6 @@ class Board:
                 self._board[i, j] = num_bombs
         
         for i in range(self.wallSize):
-            vertThickness = i+1
-            horzThickness = i+3
             self._board = np.vstack((
                 np.full(self.w + 2*i, -2),
                 self._board,
@@ -88,9 +86,15 @@ class Board:
             for j in range(max(y-self.wallSize, 0), min(y+1+self.wallSize, self.h+self.wallSize)):
                 if self._board[i, j] >= 0 and self._covered_board[i, j] == True:
                     self.tile_click((i, j))
-
+        if self.tiles_left() == 0:
+            self.set_state(Board.State.Won)
         return tile
-
+    
+    
+    def tiles_left(self):
+        return(sum(sum(self._covered_board))-self.num_bombs)
+        
+        
     def neighbours(self, coords):
         x, y = coords
         return self._board[max(x-1,0):min(x+2,self.w+1), max(y-1,0):min(y+2,self.h+1)].flatten()

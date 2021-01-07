@@ -1,23 +1,21 @@
 from minesweeper.board import Board
 from ml.visualization import GUI
-import numpy as np
 
-from sklearn.neural_network import MLPClassifier
+import numpy as np
 import tensorflow as tf
 from tensorflow.keras import Sequential
-from tensorflow.keras.layers import Conv2D, Dense, Flatten
+from tensorflow.keras.layers import Dense
 
 
-def generate_data_point(game, num_data_points=1000):
+def generate_data_point(game, num_bombs = 20, size = 10, num_data_points=1000, wallSize = 2, neighRange = 2):
     dataPoints = []
-    wallSize = 3
-    neighRange = 2
-    game = Board(num_bombs = 20, wallSize = wallSize)
+    game = Board(grid_size = (size, size), num_bombs = num_bombs, wallSize = wallSize)
     while(len(dataPoints) < num_data_points):
         a = np.random.randint(wallSize, 10+wallSize)
         b = np.random.randint(wallSize, 10+wallSize)
         tile = game.tile_click((a, b))
         if tile == Board.Tile.Bomb:
+            game.reset()
             continue
         for y in range(wallSize, 10+wallSize):
             for x in range(wallSize, 10+wallSize):
@@ -51,20 +49,7 @@ def generate_data_point(game, num_data_points=1000):
 
     return X_train, Y_train
 
-
-if __name__ == "__main__":
-    neighRange = 2
-    wallSize = neighRange
-    size = 10
-    game = Board(num_bombs = 20, grid_size=(size, size), wallSize = wallSize)
-    num_data_points = 1000
-    X_train, Y_train = generate_data_point(game, num_data_points=num_data_points)
-    
-    print("")
-    print("Starting training....")
-    print("")
-    
-    # Train
+def get_model(X_train, Y_train):
     model = Sequential()
     model.add(Dense(110, activation='relu'))
     model.add(Dense(64, activation='relu'))
@@ -78,12 +63,24 @@ if __name__ == "__main__":
     
     model.fit(X_train, Y_train, epochs=100)    
     
-    probability_model = tf.keras.Sequential([model, 
+    return tf.keras.Sequential([model, 
                                           tf.keras.layers.Softmax()])
     
-    # clf = RandomForestClassifier()
-    # clf.fit(X_train, Y_train)
+if __name__ == "__main__":
+    neighRange = 2
+    wallSize = neighRange
+    size = 10
+    num_data_points = 1000000
     
+    
+    game = Board(num_bombs = 20, grid_size=(size, size), wallSize = wallSize)
+    X_train, Y_train = generate_data_point(game, num_data_points=num_data_points,
+                                      wallSize=wallSize, neighRange=neighRange)
+    
+    print("\n Starting training.... \n")
+    
+    model = get_model(X_train, Y_train)
+
     print("Training complete. I am at your service, Master!")
     game.reset() 
     a = np.random.randint(wallSize, size+wallSize)
@@ -94,6 +91,7 @@ if __name__ == "__main__":
     while(True):
         probs = []    
         coords = []
+        dataPoints = []
         for x in range(wallSize, size+wallSize):
             for y in range(wallSize, size+wallSize):
                 features = np.empty((0,), dtype=int)
@@ -112,17 +110,23 @@ if __name__ == "__main__":
                                 else:
                                     one_hot[int(game._board[i, j])] = 1
                                     features = np.append(features, one_hot)
-                        z = probability_model.predict(np.array(features).reshape(1, -1))[0][1]*100
-                        probs.append(z)
+                        dataPoints.append(features)
                         coords.append((x, y))
-                            
+        
+        dataPoints = np.array(dataPoints)
+        probs = model.predict(dataPoints)[:,-1]
         graphics.loadMap(game._board, game._covered_board, probs, coords)
         graphics.loadColor(coords[np.argmin(probs)][0], coords[np.argmin(probs)][1], 'yellow')
         graphics.win.getMouse()
         tile = game.tile_click(coords[np.argmin(probs)])
-        if game.get_state() == Board.State.GameOver:
-            print()
-            print("You lost... RIP")
+        print("\n There are {} more squares you need to uncover!\n".format(game.tiles_left()))
+        if game.get_state() != Board.State.Playing:
+            if game.get_state() == Board.State.GameOver:
+                print("\nYou lost... RIP")
+            else:
+                print("\nWow, you actually won!")
+            graphics.loadMap(game._board, game._covered_board, probs, coords)
+            graphics.win.getMouse()
             game.reset() 
             a = np.random.randint(wallSize, size+wallSize)
             b = np.random.randint(wallSize, size+wallSize)
