@@ -4,6 +4,8 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.keras import Sequential
 from tensorflow.keras.layers import Dense
+from sklearn import preprocessing
+from sklearn.ensemble import RandomForestClassifier
 import graphics as g
 
 class GUI:
@@ -173,46 +175,45 @@ if __name__ == "__main__":
             continue
         for y in range(2, 12):
             for x in range(2, 12):
-                    appendList = []
+                    features = np.empty((0,), dtype=int)
                     numInList = False
                     if game._covered_board[x, y] == True:
                         for i in range(x-2, x+3):
                             for j in range(y-2, y+3):
+                                one_hot = np.zeros(11, dtype=int)
                                 if i == x and j == y:
                                     continue
                                 if(game._covered_board[i, j] == True):
-                                    appendList.append(100)
+                                    one_hot[9] = 1
+                                    features = np.append(features, one_hot)
                                 elif(game._board[i, j] == -2):
-                                    appendList.append(-1000)
+                                    one_hot[10] = 1
+                                    features = np.append(features, one_hot)
                                 else:
-                                    appendList.append(game._board[i, j])
-                                    numInList = True
-                    if numInList:   
+                                    one_hot[int(game._board[i, j])] = 1
+                                    features = np.append(features, one_hot)
                         if game._board[x, y] == -1:
-                            appendList.append(1)
+                            features = np.append(features, 1)
                         else:
-                            appendList.append(0)
-                        dataPoints.append(appendList)
+                            features = np.append(features, 0)
+                        dataPoints.append(features)
                         
                             
         game.reset()
     dataPoints = np.array([np.array(a) for a in dataPoints])
-    
     X_train = dataPoints[:,:-1]
     Y_train = dataPoints[:,-1]
     
-    print(Y_train.size)
-    print(sum(Y_train))
-    print(sum(Y_train)/Y_train.shape[0])
-    print(round((iiii/iii)*100, 2))
     print("")
     print("Starting training....")
     print("")
     
     
     model = Sequential()
-    model.add(Dense(8, activation='relu'))
-    model.add(Dense(4, activation='relu'))
+    model.add(Dense(110, activation='relu'))
+    model.add(Dense(64, activation='relu'))
+    model.add(Dense(32, activation='relu'))
+    model.add(Dense(16, activation='relu'))
     model.add(Dense(2))
     
     model.compile(optimizer='adam',
@@ -226,7 +227,10 @@ if __name__ == "__main__":
     
     
     probability_model = tf.keras.Sequential([model, 
-                                         tf.keras.layers.Softmax()])
+                                          tf.keras.layers.Softmax()])
+    
+    # clf = RandomForestClassifier()
+    # clf.fit(X_train, Y_train)
     
     print("Training complete. I am at your service, Master!")
     summ = 99
@@ -235,7 +239,7 @@ if __name__ == "__main__":
     a = np.random.randint(2, 12)
     b = np.random.randint(2, 12)
     game.tile_click((a, b))
-    game.print_board()
+    # game.print_board()
     
     graphics = GUI(10)
     while(True):
@@ -243,25 +247,30 @@ if __name__ == "__main__":
         coords = []
         for x in range(2, 12):
             for y in range(2, 12):
-                features = []
+                features = np.empty((0,), dtype=int)
                 if game._covered_board[x, y] == True:
                             for i in range(x-2, x+3):
                                 for j in range(y-2, y+3):
+                                    one_hot = np.zeros(11)
                                     if i == x and j == y:
                                         continue
                                     if(game._covered_board[i, j] == True):
-                                        features.append(20)
+                                        one_hot[9] = 1
+                                        features = np.append(features, one_hot)
                                     elif(game._board[i, j] == -2):
-                                        features.append(20)
+                                        one_hot[10] = 1
+                                        features = np.append(features, one_hot)
                                     else:
-                                        features.append(game._board[i, j])  
+                                        one_hot[int(game._board[i, j])] = 1
+                                        features = np.append(features, one_hot)
                             z = probability_model.predict(np.array(features).reshape(1, -1))[0][1]*100
+                            # z = clf.predict_proba(np.array(features).reshape(1, -1))[0][1]*100
                             probs.append(z)
                             coords.append((x, y))
                             
         graphics.loadMap(game._board, game._covered_board, probs, coords)
         graphics.loadColor(coords[np.argmin(probs)][0], coords[np.argmin(probs)][1], 'yellow')
-        game.print_board()
+        # game.print_board()
         graphics.win.getMouse()
         tile = game.tile_click(coords[np.argmin(probs)])
         if game.state == Board.State.GameOver:
@@ -272,7 +281,7 @@ if __name__ == "__main__":
             a = np.random.randint(2, 12)
             b = np.random.randint(2, 12)
             game.tile_click((a, b))
-            game.print_board()
+            # game.print_board()
     
     
     
