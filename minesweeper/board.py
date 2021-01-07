@@ -21,7 +21,8 @@ class Board:
         GameOver = 1
         Won = 2
     
-    def __init__(self, grid_size=(10, 10), num_bombs=10):
+    def __init__(self, grid_size=(10, 10), num_bombs=10, wallSize = 2):
+        self.wallSize = wallSize
         self.grid_size = grid_size
         self.num_bombs = num_bombs
         self.w, self.h = grid_size
@@ -29,10 +30,16 @@ class Board:
         self._covered_board[2:(self.w+2), 2:(self.h+2)] = True
         self._board = self.__make_board()
         self._state = Board.State.Playing
+    
+    def get_state(self):
+        return self._state
+
+    def set_state(self, state):
+        self._state = state
         
     def reset(self):
-        self._covered_board = np.full((self.w+4, self.h+4), False)
-        self._covered_board[2:(self.w+2), 2:(self.h+2)] = True
+        self._covered_board = np.full((self.w+self.wallSize*2, self.h+self.wallSize*2), False)
+        self._covered_board[self.wallSize:(self.w+self.wallSize), self.wallSize:(self.h+self.wallSize)] = True
         self._board = self.__make_board()
         self._state = Board.State.Playing
         
@@ -50,16 +57,16 @@ class Board:
                 neighs = self.neighbours((i, j))
                 num_bombs = sum([1 for n in neighs if n == -1])
                 self._board[i, j] = num_bombs
-
-        self._board = np.vstack((
-            np.full(self.w, -2),
-            np.full(self.w, -2),
-            self._board,
-            np.full(self.w, -2),
-            np.full(self.w, -2)
-        ))
-
-        self._board = np.hstack((np.full((self.h+4,1), -2), np.full((self.h+4,1), -2), self._board, np.full((self.h+4,1), -2), np.full((self.h+4,1), -2)))
+        
+        for i in range(self.wallSize):
+            vertThickness = i+1
+            horzThickness = i+3
+            self._board = np.vstack((
+                np.full(self.w + 2*i, -2),
+                self._board,
+                np.full(self.w + 2*i, -2),
+            ))
+            self._board = np.hstack((np.full((self.h+2*(i+1),1), -2), self._board, np.full((self.h+2*(i+1),1), -2)))
         return self._board
 
     def tile_click(self, coord):
@@ -71,14 +78,14 @@ class Board:
         self._covered_board[x, y] = False
         
         if tile == Board.Tile.Bomb:
-            self.state = Board.State.GameOver
+            self._state = Board.State.GameOver
             return tile
         
         if self._board[coord] > 0:
             return tile
         
-        for i in range(max(x-2, 0), min(x+3, self.w+2)):
-            for j in range(max(y-2, 0), min(y+3, self.h+2)):
+        for i in range(max(x-self.wallSize, 0), min(x+self.wallSize+1, self.w+self.wallSize)):
+            for j in range(max(y-self.wallSize, 0), min(y+1+self.wallSize, self.h+self.wallSize)):
                 if self._board[i, j] >= 0 and self._covered_board[i, j] == True:
                     self.tile_click((i, j))
 
@@ -86,7 +93,6 @@ class Board:
 
     def neighbours(self, coords):
         x, y = coords
-        # assert 2 <= x < self.w+2 and 2 <= y < self.h+2, f"out of bound: x: {x} y: {y}"
         return self._board[max(x-1,0):min(x+2,self.w+1), max(y-1,0):min(y+2,self.h+1)].flatten()
 
     def print_board(self):
@@ -98,16 +104,12 @@ class Board:
         for j in range(0, 4*self.h+7):
             print("-", end='')
         print()
-        for i in range(2, self.w+2):
+        for i in range(self.wallSize, self.w+self.wallSize):
             print(f'{i}: |', end='')
-            for j in range(2, self.h+2):
+            for j in range(self.wallSize, self.h+self.wallSize):
                 t = int(self._board[i,j])
                 if self._covered_board[i,j]:
                     t = "x"
                 print(f" {t:>2} ", end='')
             print('|')
         print('')
-
-    
-if __name__ == "__main__":
-    pass
