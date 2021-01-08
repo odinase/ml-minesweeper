@@ -7,17 +7,21 @@ from tensorflow.keras import Sequential
 from tensorflow.keras.layers import Dense
 import os
 import pandas as pd
+import time
 
 
 def generate_data_point(game, num_bombs = 20, size = 10, num_data_points=1000, wallSize = 2, neighRange = 2):
+    print("\nGathering data...")
     dataPoints = []
     game = Board(grid_size = (size, size), num_bombs = num_bombs, wallSize = wallSize)
-    i = 0
+    count = 0
+    start = time.time()
     while(len(dataPoints) < num_data_points):
-        i+= 1
-        if i == 100:
-            i = 0
-            print("We're {0}% of the way with {1} data points!".format(100*len(dataPoints)/num_data_points, len(dataPoints)))
+        count+= 1
+        if count == 100:
+            count = 0
+            decimal = len(dataPoints)/num_data_points
+            print("We're {0}% of the way with ETA: {1}".format(decimal*100, round((1/decimal)*(time.time()-start), 1)))
         a = np.random.randint(wallSize, 10+wallSize)
         b = np.random.randint(wallSize, 10+wallSize)
         game.tile_click((a, b))
@@ -48,8 +52,10 @@ def generate_data_point(game, num_bombs = 20, size = 10, num_data_points=1000, w
         game.reset()
     dataPoints = np.array([np.array(a) for a in dataPoints])
     X_train = dataPoints[:,:-1]
-    Y_train = dataPoints[:,-1]
-    pd.DataFrame(dataPoints).to_csv("\data\dataPoints.csv")
+    Y_train = dataPoints[:,-1] 
+    path = ('./data/dataPoints' + str(num_data_points)+'_'+str(num_bombs)+
+            '_'+str(size)+'_'+str(neighRange)+'.csv')
+    pd.DataFrame(dataPoints).to_csv(path)
 
     return X_train, Y_train
 
@@ -74,16 +80,19 @@ if __name__ == "__main__":
     neighRange = 4
     wallSize = neighRange
     size = 10
-    num_data_points = 10000000
+    num_data_points = 1000000
     getNewData = False
     num_bombs = 15
     
     game = Board(num_bombs = num_bombs, grid_size=(size, size), wallSize = wallSize)
+    path = ('./data/dataPoints' + str(num_data_points)+'_'+str(num_bombs)+
+            '_'+str(size)+'_'+str(neighRange)+'.csv')
     if getNewData == False:
         try:
-            dataPoints = pd.read_csv('\data\dataPoints.csv', sep=',',header=None)[:min(num_data_points, 10000000)]
+            dataPoints = pd.read_csv(path,header=0).to_numpy()[:num_data_points]
             X_train = dataPoints[:,:-1]
             Y_train = dataPoints[:,-1]
+            print('\nLoaded csv')
         except:
             X_train, Y_train = generate_data_point(game, num_data_points=num_data_points,
                                               wallSize=wallSize, neighRange=neighRange)
@@ -91,11 +100,11 @@ if __name__ == "__main__":
         X_train, Y_train = generate_data_point(game, num_data_points=num_data_points,
                                               wallSize=wallSize, neighRange=neighRange)
         
-    print("\n Starting training.... \n")
+    print("\nStarting training....")
     
     model = fit_model(X_train, Y_train)
 
-    print("Training complete. I am at your service, Master!")
+    print("\nTraining complete. I am at your service, Master!")
     game.reset() 
     a = np.random.randint(wallSize, size+wallSize)
     b = np.random.randint(wallSize, size+wallSize)
@@ -132,7 +141,7 @@ if __name__ == "__main__":
         graphics.loadColor(coords[np.argmin(probs)][0], coords[np.argmin(probs)][1], 'yellow')
         graphics.win.getMouse()
         tile = game.tile_click(coords[np.argmin(probs)])
-        print("\n There are {} more squares you need to uncover!\n".format(game.tiles_left()))
+        print("\n There are {} more squares you need to uncover!".format(game.tiles_left()))
         if game.get_state() != Board.State.Playing:
             if game.get_state() == Board.State.GameOver:
                 print("\nYou lost... RIP")
