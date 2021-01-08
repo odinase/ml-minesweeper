@@ -47,7 +47,6 @@ class Board:
         
         
     def __make_board(self, coord):
-        
         # Place bombs randomly on grid
         self._board = np.zeros(self.grid_size)
         self._board.ravel()[:self.num_bombs] = -1
@@ -59,7 +58,6 @@ class Board:
             other_tile = np.random.randint(0, r_idx.shape[0])
             self._board[r_idx[other_tile], c_idx[other_tile]] = -1
             self._board[coord[0] - self.wallSize, coord[1] - self.wallSize] = 0
-        self._covered_board[coord[0] - self.wallSize, coord[1] - self.wallSize] = False
         for i in range(self.w):
             for j in range(self.h):
                 if self._board[i,j] == -1:
