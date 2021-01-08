@@ -6,6 +6,7 @@ import tensorflow as tf
 from tensorflow.keras import Sequential
 from tensorflow.keras.layers import Dense
 import os
+import pandas as pd
 
 
 def generate_data_point(game, num_bombs = 20, size = 10, num_data_points=1000, wallSize = 2, neighRange = 2):
@@ -48,23 +49,23 @@ def generate_data_point(game, num_bombs = 20, size = 10, num_data_points=1000, w
     dataPoints = np.array([np.array(a) for a in dataPoints])
     X_train = dataPoints[:,:-1]
     Y_train = dataPoints[:,-1]
+    pd.DataFrame(dataPoints).to_csv("\data\dataPoints.csv")
 
     return X_train, Y_train
 
-def fit_model(X_train, Y_train):
+def fit_model(X_train, Y_train, epochs = 25):
     os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
     model = Sequential()
-    model.add(Dense(110, activation='relu'))
-    model.add(Dense(64, activation='relu'))
+    model.add(Dense(200, activation='relu'))
+    model.add(Dense(100, activation='relu'))
     model.add(Dense(32, activation='relu'))
-    model.add(Dense(16, activation='relu'))
     model.add(Dense(2))
     
     model.compile(optimizer='adam',
               loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
               metrics=['accuracy'])
     
-    model.fit(X_train, Y_train, epochs=100, use_multiprocessing=True, workers = 240)    
+    model.fit(X_train, Y_train, epochs=epochs, use_multiprocessing=True, workers = 240)    
     
     return tf.keras.Sequential([model, 
                                           tf.keras.layers.Softmax()])
@@ -73,13 +74,23 @@ if __name__ == "__main__":
     neighRange = 4
     wallSize = neighRange
     size = 10
-    num_data_points = 100000
+    num_data_points = 10000000
+    getNewData = False
+    num_bombs = 15
     
-    
-    game = Board(num_bombs = 15, grid_size=(size, size), wallSize = wallSize)
-    X_train, Y_train = generate_data_point(game, num_data_points=num_data_points,
-                                      wallSize=wallSize, neighRange=neighRange)
-    
+    game = Board(num_bombs = num_bombs, grid_size=(size, size), wallSize = wallSize)
+    if getNewData == False:
+        try:
+            dataPoints = pd.read_csv('\data\dataPoints.csv', sep=',',header=None)[:min(num_data_points, 10000000)]
+            X_train = dataPoints[:,:-1]
+            Y_train = dataPoints[:,-1]
+        except:
+            X_train, Y_train = generate_data_point(game, num_data_points=num_data_points,
+                                              wallSize=wallSize, neighRange=neighRange)
+    else:
+        X_train, Y_train = generate_data_point(game, num_data_points=num_data_points,
+                                              wallSize=wallSize, neighRange=neighRange)
+        
     print("\n Starting training.... \n")
     
     model = fit_model(X_train, Y_train)
@@ -116,11 +127,9 @@ if __name__ == "__main__":
                         dataPoints.append(features)
                         coords.append((x, y))
         
-        dataPoints = np.array(dataPoints)
-        probs = model.predict(dataPoints)[:,-1]*100
+        probs = model.predict(np.array(dataPoints))[:,-1]*100
         graphics.loadMap(game._board, game._covered_board, probs, coords)
         graphics.loadColor(coords[np.argmin(probs)][0], coords[np.argmin(probs)][1], 'yellow')
-        print(game._covered_board)
         graphics.win.getMouse()
         tile = game.tile_click(coords[np.argmin(probs)])
         print("\n There are {} more squares you need to uncover!\n".format(game.tiles_left()))
