@@ -28,8 +28,9 @@ class Board:
         self.w, self.h = grid_size
         self._covered_board = np.full((self.w+2*wallSize, self.h+2*wallSize), False)
         self._covered_board[wallSize:(self.w+wallSize), wallSize:(self.h+wallSize)] = True
-        self._board = self.__make_board()
+        self._board = None
         self._state = Board.State.Playing
+        self.first_clicked = False
     
     def get_state(self):
         return self._state
@@ -40,16 +41,25 @@ class Board:
     def reset(self):
         self._covered_board = np.full((self.w+self.wallSize*2, self.h+self.wallSize*2), False)
         self._covered_board[self.wallSize:(self.w+self.wallSize), self.wallSize:(self.h+self.wallSize)] = True
-        self._board = self.__make_board()
+        self._board = None
         self._state = Board.State.Playing
+        self.first_clicked = False
         
         
-    def __make_board(self):
+    def __make_board(self, coord):
+        
         # Place bombs randomly on grid
         self._board = np.zeros(self.grid_size)
         self._board.ravel()[:self.num_bombs] = -1
         np.random.shuffle(self._board.ravel())
-
+        
+        if self._board[coord[0] - self.wallSize, coord[1] - self.wallSize] == -1:
+            not_bomb_grid = self._board == 0
+            r_idx, c_idx = not_bomb_grid.nonzero() # corresponding row and col idxs of bomb-free tiles
+            other_tile = np.random.randint(0, r_idx.shape[0])
+            self._board[r_idx[other_tile], c_idx[other_tile]] = -1
+            self._board[coord[0] - self.wallSize, coord[1] - self.wallSize] = 0
+        self._covered_board[coord[0] - self.wallSize, coord[1] - self.wallSize] = False
         for i in range(self.w):
             for j in range(self.h):
                 if self._board[i,j] == -1:
@@ -68,6 +78,9 @@ class Board:
         return self._board
 
     def tile_click(self, coord):
+        if self.first_clicked == False:
+            self._board = self.__make_board(coord)
+            self.first_clicked = True
         is_covered = self._covered_board[coord]
         assert is_covered, "Found tile is not Covered!"
         tile = Board.Tile(self._board[coord])
@@ -82,10 +95,11 @@ class Board:
         if self._board[coord] > 0:
             return tile
         
-        for i in range(max(x-self.wallSize, 0), min(x+self.wallSize+1, self.w+self.wallSize)):
-            for j in range(max(y-self.wallSize, 0), min(y+1+self.wallSize, self.h+self.wallSize)):
+        for i in range(max(x-1, self.wallSize), min(x+2, self.w+self.wallSize)):
+            for j in range(max(y-1, self.wallSize), min(y+2, self.h+self.wallSize)):
                 if self._board[i, j] >= 0 and self._covered_board[i, j] == True:
                     self.tile_click((i, j))
+                    
         if self.tiles_left() == 0:
             self.set_state(Board.State.Won)
         return tile

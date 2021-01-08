@@ -5,23 +5,26 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.keras import Sequential
 from tensorflow.keras.layers import Dense
+import os
 
 
 def generate_data_point(game, num_bombs = 20, size = 10, num_data_points=1000, wallSize = 2, neighRange = 2):
     dataPoints = []
     game = Board(grid_size = (size, size), num_bombs = num_bombs, wallSize = wallSize)
+    i = 0
     while(len(dataPoints) < num_data_points):
+        i+= 1
+        if i == 100:
+            i = 0
+            print("We're {0}% of the way with {1} data points!".format(100*len(dataPoints)/num_data_points, len(dataPoints)))
         a = np.random.randint(wallSize, 10+wallSize)
         b = np.random.randint(wallSize, 10+wallSize)
-        tile = game.tile_click((a, b))
-        if tile == Board.Tile.Bomb:
-            game.reset()
-            continue
+        game.tile_click((a, b))
         for y in range(wallSize, 10+wallSize):
             for x in range(wallSize, 10+wallSize):
                     features = np.empty((0,), dtype=int)
                     if game._covered_board[x, y] == True:
-                        for i in range(x-neighRange, x+neighRange+1):
+                        for i in range(x-neighRange, x+1+neighRange):
                             for j in range(y-neighRange, y+1+neighRange):
                                 one_hot = np.zeros(11, dtype=int)
                                 if (i, j) == (x, y):
@@ -41,7 +44,6 @@ def generate_data_point(game, num_bombs = 20, size = 10, num_data_points=1000, w
                             features = np.append(features, 0)
                         dataPoints.append(features)
                         
-                            
         game.reset()
     dataPoints = np.array([np.array(a) for a in dataPoints])
     X_train = dataPoints[:,:-1]
@@ -49,7 +51,8 @@ def generate_data_point(game, num_bombs = 20, size = 10, num_data_points=1000, w
 
     return X_train, Y_train
 
-def get_model(X_train, Y_train):
+def fit_model(X_train, Y_train):
+    os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
     model = Sequential()
     model.add(Dense(110, activation='relu'))
     model.add(Dense(64, activation='relu'))
@@ -61,25 +64,25 @@ def get_model(X_train, Y_train):
               loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
               metrics=['accuracy'])
     
-    model.fit(X_train, Y_train, epochs=100)    
+    model.fit(X_train, Y_train, epochs=100, use_multiprocessing=True, workers = 240)    
     
     return tf.keras.Sequential([model, 
                                           tf.keras.layers.Softmax()])
     
 if __name__ == "__main__":
-    neighRange = 2
+    neighRange = 4
     wallSize = neighRange
     size = 10
-    num_data_points = 1000000
+    num_data_points = 100000
     
     
-    game = Board(num_bombs = 20, grid_size=(size, size), wallSize = wallSize)
+    game = Board(num_bombs = 15, grid_size=(size, size), wallSize = wallSize)
     X_train, Y_train = generate_data_point(game, num_data_points=num_data_points,
                                       wallSize=wallSize, neighRange=neighRange)
     
     print("\n Starting training.... \n")
     
-    model = get_model(X_train, Y_train)
+    model = fit_model(X_train, Y_train)
 
     print("Training complete. I am at your service, Master!")
     game.reset() 
@@ -114,9 +117,10 @@ if __name__ == "__main__":
                         coords.append((x, y))
         
         dataPoints = np.array(dataPoints)
-        probs = model.predict(dataPoints)[:,-1]
+        probs = model.predict(dataPoints)[:,-1]*100
         graphics.loadMap(game._board, game._covered_board, probs, coords)
         graphics.loadColor(coords[np.argmin(probs)][0], coords[np.argmin(probs)][1], 'yellow')
+        print(game._covered_board)
         graphics.win.getMouse()
         tile = game.tile_click(coords[np.argmin(probs)])
         print("\n There are {} more squares you need to uncover!\n".format(game.tiles_left()))
