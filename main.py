@@ -9,58 +9,91 @@ import os
 import pandas as pd
 import time
 
-from pybind_testing import gather_datapoints
+from pybind_testing import create_datapoint
 
 
+import profilehooks
+import line_profiler
+import atexit
+
+profile = line_profiler.LineProfiler()
+atexit.register(profile.print_stats)
+
+MAX_DATA_POINTS = 1000000
+
+def create_datapoint_python(game, wallSize, neighRange):
+    data_point = []
+    for y in range(wallSize, 10+wallSize):
+        for x in range(wallSize, 10+wallSize):
+            features = np.empty((0,), dtype=int)
+            if game._covered_board[x, y] == True:
+                for i in range(x-neighRange, x+1+neighRange):
+                    for j in range(y-neighRange, y+1+neighRange):
+                        one_hot = np.zeros(10, dtype=int)
+                        if (i, j) == (x, y):
+                            continue
+                        if game._covered_board[i, j] == True:
+                            one_hot[9] = 1
+                            features = np.append(features, one_hot)
+                        #One hot with drop
+                        else:
+                            if(game._board[i, j] != -2):
+                                if int(game._board[i, j]) == -1:
+                                    print("ooops")
+                                one_hot[int(game._board[i, j])] = 1
+                            features = np.append(features, one_hot)
+                if game._board[x, y] == -1:
+                    features = np.append(features, 1)
+                else:
+                    features = np.append(features, 0)
+                data_point.append(features)
+
+    return data_point
+
+@profile
 def generate_data_point(game, num_bombs = 20, size = 10, num_data_points=1000, wallSize = 2, neighRange = 2):
     print("\nGathering data...")
     dataPoints = []
+    dataPointsCpp = []
     game = Board(grid_size = (size, size), num_bombs = num_bombs, wallSize = wallSize)
     count = 0
     start = time.time()
-    
-    if num_data_points > 10000:
-        num_of_files = int(num_data_points/10000)
+
+    if num_data_points > MAX_DATA_POINTS:
+        num_of_files = int(num_data_points/MAX_DATA_POINTS)
     else:
         num_of_files = 1
     for files in range(num_of_files):
-        while(len(dataPoints) < num_data_points):
+        curr_num_data_points = len(dataPoints)
+        start = time.time()
+        while(curr_num_data_points < num_data_points):
             count+= 1
             if count == 100:
                 count = 0
-                decimal = len(dataPoints)/num_data_points
+                decimal = curr_num_data_points/num_data_points
                 print("We're {0}% of the way with file {2} out of {3} ETA: {1}"
-                      .format(round(decimal*100, 1),
-                              round((((1/decimal))*(time.time()-start) - 
-                                     (time.time()-start))*(num_of_files/(files+1)), 0),
-                      files+1, num_of_files))
+                        .format(round(decimal*100, 1),
+                                round((((1/decimal))*(time.time()-start) - 
+                                        (time.time()-start))*(num_of_files/(files+1)), 0),
+                        files+1, num_of_files))
             a = np.random.randint(wallSize, 10+wallSize)
             b = np.random.randint(wallSize, 10+wallSize)
             game.tile_click((a, b))
-            for y in range(wallSize, 10+wallSize):
-                for x in range(wallSize, 10+wallSize):
-                        features = np.empty((0,), dtype=int)
-                        if game._covered_board[x, y] == True:
-                            for i in range(x-neighRange, x+1+neighRange):
-                                for j in range(y-neighRange, y+1+neighRange):
-                                    one_hot = np.zeros(10, dtype=int)
-                                    if (i, j) == (x, y):
-                                        continue
-                                    #One hot with drop
-                                    if(game._board[i, j] == -2):
-                                        one_hot[10] = 1
-                                        features = np.append(features, one_hot)
-                                    else:
-                                        one_hot[int(game._board[i, j])] = 1
-                                        features = np.append(features, one_hot)
-                            if game._board[x, y] == -1:
-                                features = np.append(features, 1)
-                            else:
-                                features = np.append(features, 0)
-                            dataPoints.append(features)
-                            
+            
+            # data_point_py = create_datapoint_python(game, wallSize, neighRange)
+
+            data_point = np.array(
+                create_datapoint(game._covered_board, game._board.astype(np.int32), wallSize, neighRange, size)
+            ).reshape(-1, 801) # We have ((2*neighRange+1)*(2*neighRange+1) - 1)*10 = 800 features and 1 label
+
+            dataPoints.append(data_point)
+            curr_num_data_points += data_point.shape[0]#np.vstack(dataPoints).shape[0]
+            # assert np.allclose(np.array(dataPoints).ravel(), np.vstack(dataPointsCpp).ravel()), "Smell"
             game.reset()
-        dataPoints = np.array([np.array(a) for a in dataPoints])
+        end = time.time()
+        print(f"done, spent {end-start} s")
+        dataPoints = np.vstack(dataPoints)
+        # dataPoints = np.array([np.array(a) for a in dataPoints])
         path = ('./data/dataPoints' + str(num_data_points)+'_'+str(num_bombs)+
                 '_'+str(size)+'_'+str(neighRange)+'_num='+str(files+1)+'.csv')
         pd.DataFrame(dataPoints).to_csv(path)
@@ -85,10 +118,10 @@ def fit_model(model, X_train, Y_train, epochs = 25):
     
     
 if __name__ == "__main__":
-    neighRange = 5
+    neighRange = 4
     wallSize = neighRange
     size = 10
-    num_data_points = 500000
+    num_data_points = 100_000#1000000
     getNewData = False
     num_bombs = 15
     
@@ -96,19 +129,22 @@ if __name__ == "__main__":
     path = ('./data/dataPoints' + str(num_data_points)+'_'+str(num_bombs)+
             '_'+str(size)+'_'+str(neighRange)+'.csv')
     
-    if num_data_points > 10000:
-        num_of_files = int(num_data_points/10000)
+    if num_data_points > MAX_DATA_POINTS:
+        num_of_files = int(num_data_points/MAX_DATA_POINTS)
     else:
         num_of_files = 1
     
-    try:
-        for files in range(num_of_files):
-            assert os.path.exists(('./data/dataPoints' + str(num_data_points)+'_'+str(num_bombs)+
-                '_'+str(size)+'_'+str(neighRange)+'_num='+str(files+1)+'.csv'))
+    # try:
+    #     for files in range(num_of_files):
+    #         assert os.path.exists(('./data/dataPoints' + str(num_data_points)+'_'+str(num_bombs)+
+    #             '_'+str(size)+'_'+str(neighRange)+'_num='+str(files+1)+'.csv'))
             
-    except:
-        generate_data_point(game, num_bombs = num_bombs, num_data_points=num_data_points,
-                                              wallSize=wallSize, neighRange=neighRange)
+    # except:
+    start = time.time()
+    generate_data_point(game, num_bombs = num_bombs, num_data_points=num_data_points,
+                                            wallSize=wallSize, neighRange=neighRange)
+    end = time.time()
+    print(f"took {end-start} s")
     
     
     print("\nStarting training....")

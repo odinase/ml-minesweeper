@@ -6,6 +6,7 @@
 #include <Eigen/Core>
 #include <iostream>
 #include <vector>
+#include <cinttypes>
 
 namespace py = pybind11;
 using namespace Eigen;
@@ -54,60 +55,57 @@ void call_python(pybind11::object obj) {
     std::cout << std::endl;
 }
 /*
-        for y in range(wallSize, 10+wallSize):
-            for x in range(wallSize, 10+wallSize):
-                    features = np.empty((0,), dtype=int)
-                    if game._covered_board[x, y] == True:
-                        for i in range(x-neighRange, x+1+neighRange):
-                            for j in range(y-neighRange, y+1+neighRange):
-                                one_hot = np.zeros(11, dtype=int)
-                                if (i, j) == (x, y):
-                                    continue
-                                if(game._covered_board[i, j] == True):
-                                    one_hot[9] = 1
-                                    features = np.append(features, one_hot)
-                                elif(game._board[i, j] == -2):
-                                    one_hot[10] = 1
-                                    features = np.append(features, one_hot)
-                                else:
-                                    one_hot[int(game._board[i, j])] = 1
-                                    features = np.append(features, one_hot)
-                        if game._board[x, y] == -1:
-                            features = np.append(features, 1)
-                        else:
-                            features = np.append(features, 0)
-                        dataPoints.append(features)
+            for y in range(wallSize, 10+wallSize):
+                for x in range(wallSize, 10+wallSize):
+                        features = np.empty((0,), dtype=int)
+                        if game._covered_board[x, y] == True:
+                            for i in range(x-neighRange, x+1+neighRange):
+                                for j in range(y-neighRange, y+1+neighRange):
+                                    one_hot = np.zeros(10, dtype=int)
+                                    if (i, j) == (x, y):
+                                        continue
+                                    if game._covered_board[i, j] == True:
+                                        one_hot[9] = 1
+                                        features = np.append(features, one_hot)
+                                    #One hot with drop
+                                    else:
+                                        if(game._board[i, j] != -2):
+                                            one_hot[int(game._board[i, j])] = 1
+                                        features = np.append(features, one_hot)
+                            if game._board[x, y] == -1:
+                                features = np.append(features, 1)
+                            else:
+                                features = np.append(features, 0)
+                            dataPoints.append(features)
                         */
-std::vector<int> gather_datapoints(py::EigenDRef<Matrix<bool, Dynamic, Dynamic>> covered_board, py::EigenDRef<Matrix<int, Dynamic, Dynamic>> board, int wallSize, int neighRange, int grid_size) {
-    std::vector<int> dataPoints;
+std::vector<std::uint8_t> create_datapoint(py::EigenDRef<Matrix<bool, Dynamic, Dynamic>> covered_board, py::EigenDRef<Matrix<int, Dynamic, Dynamic>> board, int wallSize, int neighRange, int grid_size) {
+    std::vector<std::uint8_t> data_point;
+    data_point.reserve(99*((2*neighRange+1)*(2*neighRange+1) - 1)*10);
+    std::vector<std::uint8_t> one_hot(10, 0);
     for (int y = wallSize; y < grid_size + wallSize; y++) {
         for (int x = wallSize; x < grid_size + wallSize; x++) {
-            std::vector<int> features;
             if (covered_board(x,y) == true) {
                 for (int i = x - neighRange; i < x + 1 + neighRange; i++) {
                     for (int j = y - neighRange; j < y + 1 + neighRange; j++) {
-                        std::vector<int> one_hot(11, 0);
+                        one_hot = {0,0,0,0,0,0,0,0,0,0};
                         if (i == x && j ==  y) {
                             continue;
                         }
                         if (covered_board(i, j) == true) {
                             one_hot[9] = 1;
-                        } else if (board(i,j) == -2) {
-                            one_hot[10] = 1;
                         } else {
-                            if (board(i,j) < 0 || board(i,j) > 10)
-                            std::cout << board(i,j) << std::endl;
-                            one_hot[board(i,j)] = 1;
+                            if (board(i,j) != -2) {
+                                one_hot[board(i,j)] = 1;
+                            }
                         }
-                        features.insert(features.end(), one_hot.begin(), one_hot.end());
+                        data_point.insert(data_point.end(), one_hot.begin(), one_hot.end());
                     }
                 }
-                features.emplace_back(board(x,y) == -1 ? 1 : 0);
-                dataPoints.insert(dataPoints.end(), features.begin(), features.end());
+                data_point.emplace_back(board(x,y) == -1 ? 1 : 0);
             }
         }
     }
-    return dataPoints;
+    return data_point;
 }
 
 std::vector<std::vector<int>> test_vec_in_vec() {
@@ -144,7 +142,7 @@ PYBIND11_MODULE(pybind_testing, m) {
     )pbdoc");
 
     m.def("call_python", &call_python);
-    m.def("gather_datapoints", &gather_datapoints);
+    m.def("create_datapoint", &create_datapoint);
     m.def("test_vec_in_vec", &test_vec_in_vec);
 
 #ifdef VERSION_INFO
