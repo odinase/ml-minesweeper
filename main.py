@@ -10,6 +10,8 @@ import tensorflow as tf
 from tensorflow.keras import Sequential
 from tensorflow.keras.layers import Conv2D, Dense, Flatten
 
+from pybind_testing import gather_datapoints
+
 
 def generate_data_point(game, num_data_points=1000):
     dataPoints = []
@@ -20,8 +22,6 @@ def generate_data_point(game, num_data_points=1000):
         a = np.random.randint(wallSize, 10+wallSize)
         b = np.random.randint(wallSize, 10+wallSize)
         tile = game.tile_click((a, b))
-        if tile == Board.Tile.Bomb:
-            continue
         for y in range(wallSize, 10+wallSize):
             for x in range(wallSize, 10+wallSize):
                     features = np.empty((0,), dtype=int)
@@ -38,6 +38,9 @@ def generate_data_point(game, num_data_points=1000):
                                     one_hot[10] = 1
                                     features = np.append(features, one_hot)
                                 else:
+                                    if int(game._board[i, j]) < 0 or int(game._board[i,j]) > 10:
+                                        print(int(game._board[i, j]))
+                                        print(game._covered_board[i,j])
                                     one_hot[int(game._board[i, j])] = 1
                                     features = np.append(features, one_hot)
                         if game._board[x, y] == -1:
@@ -45,7 +48,8 @@ def generate_data_point(game, num_data_points=1000):
                         else:
                             features = np.append(features, 0)
                         dataPoints.append(features)
-                        
+
+        gather_datapoints(game._covered_board, game._board.astype(np.int32), wallSize, neighRange, game.grid_size[0]) 
                             
         game.reset()
     dataPoints = np.array([np.array(a) for a in dataPoints])
@@ -60,7 +64,7 @@ if __name__ == "__main__":
     wallSize = neighRange
     size = 10
     game = Board(num_bombs = 20, grid_size=(size, size), wallSize = wallSize)
-    num_data_points = 1000
+    num_data_points = 3
     X_train, Y_train = generate_data_point(game, num_data_points=num_data_points)
     
     print("")
