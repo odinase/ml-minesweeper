@@ -9,7 +9,7 @@ import os
 import pandas as pd
 import time
 
-from pybind_testing import create_datapoint
+from pybind_testing import create_datapoint, generate_predict_features
 
 
 import profilehooks
@@ -38,8 +38,6 @@ def create_datapoint_python(game, wallSize, neighRange):
                         #One hot with drop
                         else:
                             if(game._board[i, j] != -2):
-                                if int(game._board[i, j]) == -1:
-                                    print("ooops")
                                 one_hot[int(game._board[i, j])] = 1
                             features = np.append(features, one_hot)
                 if game._board[x, y] == -1:
@@ -121,7 +119,7 @@ if __name__ == "__main__":
     neighRange = 4
     wallSize = neighRange
     size = 10
-    num_data_points = 100_000#1000000
+    num_data_points = 100#1000000
     getNewData = False
     num_bombs = 15
     
@@ -165,31 +163,40 @@ if __name__ == "__main__":
     
     graphics = GUI(size=size, wallSize=wallSize)
     while(True):
-        probs = []    
-        coords = []
-        dataPoints = []
-        for x in range(wallSize, size+wallSize):
-            for y in range(wallSize, size+wallSize):
-                features = np.empty((0,), dtype=int)
-                if game._covered_board[x, y] == True:
-                        for i in range(x-wallSize, x+1+wallSize):
-                            for j in range(y-wallSize, y+1+wallSize):
-                                one_hot = np.zeros(11)
-                                if (i, j) == (x, y):
-                                    continue
-                                if(game._covered_board[i, j] == True):
-                                    one_hot[9] = 1
-                                    features = np.append(features, one_hot)
-                                elif(game._board[i, j] == -2):
-                                    one_hot[10] = 1
-                                    features = np.append(features, one_hot)
-                                else:
-                                    one_hot[int(game._board[i, j])] = 1
-                                    features = np.append(features, one_hot)
-                        dataPoints.append(features)
-                        coords.append((x, y))
-        
-        probs = model.predict(np.array(dataPoints))[:,-1]*100
+        probs = []
+
+        (dataPoints, coords) = generate_predict_features(game._covered_board, game._board.astype(np.int32), wallSize, neighRange, size)
+
+        data_pointCpp = np.array(dataPoints)
+        dataPoints = dataPoints.reshape(-1, 800) # We have ((2*neighRange+1)*(2*neighRange+1) - 1)*10 = 800 features
+
+        # for y in range(wallSize, size+wallSize):
+        #     for x in range(wallSize, size+wallSize):
+        #         features = np.empty((0,), dtype=int)
+        #         if game._covered_board[x, y] == True:
+        #                 for i in range(x-wallSize, x+1+wallSize):
+        #                     for j in range(y-neighRange, y+1+neighRange):
+        #                         one_hot = np.zeros(10, dtype=int)
+        #                         if (i, j) == (x, y):
+        #                             continue
+        #                         if game._covered_board[i, j] == True:
+        #                             one_hot[9] = 1
+        #                             features = np.append(features, one_hot)
+        #                         #One hot with drop
+        #                         else:
+        #                             if(game._board[i, j] != -2):
+        #                                 one_hot[int(game._board[i, j])] = 1
+        #                             features = np.append(features, one_hot)
+        #                 dataPoints.append(features)
+        #                 coords.append((x, y))
+
+        # dataPoints = np.array(dataPoints)
+        # coords = np.array(coords)
+
+        # assert np.allclose(data_pointCpp.ravel(), dataPoints.ravel()), "data_points not equal"
+        # assert np.allclose(coordsCpp.ravel(), coords.ravel()), "coords not equal"
+
+        probs = model.predict(dataPoints)[:,-1]*100
         graphics.loadMap(game._board, game._covered_board, probs, coords)
         graphics.loadColor(coords[np.argmin(probs)][0], coords[np.argmin(probs)][1], 'yellow')
         graphics.win.getMouse()
