@@ -159,7 +159,7 @@ std::tuple<std::vector<std::uint8_t>, std::vector<py::tuple>> generate_predict_f
     std::vector<std::uint8_t> data_point;
     std::vector<py::tuple> coords;
     data_point.reserve(99*((2*neighRange+1)*(2*neighRange+1) - 1)*10);
-    coords.reserve(size*size);
+    coords.reserve(grid_size*grid_size);
     std::vector<std::uint8_t> one_hot(10, 0);
     for (int y = wallSize; y < grid_size + wallSize; y++) {
         for (int x = wallSize; x < grid_size + wallSize; x++) {
