@@ -12,14 +12,14 @@ import time
 from pybind_testing import create_datapoint
 
 
-import profilehooks
-import line_profiler
-import atexit
+# import profilehooks
+# import line_profiler
+# import atexit
 
-profile = line_profiler.LineProfiler()
-atexit.register(profile.print_stats)
+# profile = line_profiler.LineProfiler()
+# atexit.register(profile.print_stats)
 
-MAX_DATA_POINTS = 1000000
+MAX_DATA_POINTS = 100000
 
 def create_datapoint_python(game, wallSize, neighRange):
     data_point = []
@@ -50,11 +50,9 @@ def create_datapoint_python(game, wallSize, neighRange):
 
     return data_point
 
-@profile
+# @profile
 def generate_data_point(game, num_bombs = 20, size = 10, num_data_points=1000, wallSize = 2, neighRange = 2):
     print("\nGathering data...")
-    dataPoints = []
-    dataPointsCpp = []
     game = Board(grid_size = (size, size), num_bombs = num_bombs, wallSize = wallSize)
     count = 0
     start = time.time()
@@ -64,6 +62,7 @@ def generate_data_point(game, num_bombs = 20, size = 10, num_data_points=1000, w
     else:
         num_of_files = 1
     for files in range(num_of_files):
+        dataPoints = []
         curr_num_data_points = len(dataPoints)
         start = time.time()
         while(curr_num_data_points < num_data_points):
@@ -73,8 +72,8 @@ def generate_data_point(game, num_bombs = 20, size = 10, num_data_points=1000, w
                 decimal = curr_num_data_points/num_data_points
                 print("We're {0}% of the way with file {2} out of {3} ETA: {1}"
                         .format(round(decimal*100, 1),
-                                round((((1/decimal))*(time.time()-start) - 
-                                        (time.time()-start))*(num_of_files/(files+1)), 0),
+                                round(((((num_of_files/(files+1)/(decimal))))*(time.time()-start) - 
+                                        (time.time()-start)), 0),
                         files+1, num_of_files))
             a = np.random.randint(wallSize, 10+wallSize)
             b = np.random.randint(wallSize, 10+wallSize)
@@ -83,7 +82,7 @@ def generate_data_point(game, num_bombs = 20, size = 10, num_data_points=1000, w
             # data_point_py = create_datapoint_python(game, wallSize, neighRange)
 
             data_point = np.array(
-                create_datapoint(game._covered_board, game._board.astype(np.int32), wallSize, neighRange, size)
+                create_datapoint(game._covered_board, game._board.astype(np.int32), wallSize, neighRange, size), dtype=np.uint8
             ).reshape(-1, 801) # We have ((2*neighRange+1)*(2*neighRange+1) - 1)*10 = 800 features and 1 label
 
             dataPoints.append(data_point)
@@ -91,12 +90,16 @@ def generate_data_point(game, num_bombs = 20, size = 10, num_data_points=1000, w
             # assert np.allclose(np.array(dataPoints).ravel(), np.vstack(dataPointsCpp).ravel()), "Smell"
             game.reset()
         end = time.time()
-        print(f"done, spent {end-start} s")
+        print(f"done, spent {0}s".format(round(end-start, 1)))
         dataPoints = np.vstack(dataPoints)
         # dataPoints = np.array([np.array(a) for a in dataPoints])
         path = ('./data/dataPoints' + str(num_data_points)+'_'+str(num_bombs)+
                 '_'+str(size)+'_'+str(neighRange)+'_num='+str(files+1)+'.csv')
-        pd.DataFrame(dataPoints).to_csv(path)
+        start = time.time()
+        pd.DataFrame(dataPoints).to_csv(path, compression='gzip', chunksize = 200000)
+        
+        # np.savetxt(path, dataPoints)
+        print("Saving took: {0}s".format(round(time.time()-start, 1)))
 
 def get_model():
     os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
@@ -121,7 +124,7 @@ if __name__ == "__main__":
     neighRange = 4
     wallSize = neighRange
     size = 10
-    num_data_points = 100_000#1000000
+    num_data_points = 1000_00
     getNewData = False
     num_bombs = 15
     
@@ -133,15 +136,14 @@ if __name__ == "__main__":
         num_of_files = int(num_data_points/MAX_DATA_POINTS)
     else:
         num_of_files = 1
-    
-    # try:
-    #     for files in range(num_of_files):
-    #         assert os.path.exists(('./data/dataPoints' + str(num_data_points)+'_'+str(num_bombs)+
-    #             '_'+str(size)+'_'+str(neighRange)+'_num='+str(files+1)+'.csv'))
-            
-    # except:
     start = time.time()
-    generate_data_point(game, num_bombs = num_bombs, num_data_points=num_data_points,
+    try:
+        for files in range(num_of_files):
+            assert os.path.exists(('./data/dataPoints' + str(num_data_points)+'_'+str(num_bombs)+
+                '_'+str(size)+'_'+str(neighRange)+'_num='+str(files+1)+'.csv'))
+            
+    except:
+        generate_data_point(game, num_bombs = num_bombs, num_data_points=num_data_points,
                                             wallSize=wallSize, neighRange=neighRange)
     end = time.time()
     print(f"took {end-start} s")
@@ -152,7 +154,7 @@ if __name__ == "__main__":
     for files in range(num_of_files):
         path = ('./data/dataPoints' + str(num_data_points)+'_'+str(num_bombs)+
                 '_'+str(size)+'_'+str(neighRange)+'_num='+str(files+1)+'.csv')
-        dataPoints = pd.read_csv(path).to_numpy()
+        dataPoints = pd.read_csv(path, compression = 'gzip').to_numpy()
         X_train = dataPoints[:,1:-1]
         Y_train = dataPoints[:,-1]
         fit_model(model, X_train, Y_train)
