@@ -4,7 +4,7 @@ from ml.visualization import GUI
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras import Sequential
-from tensorflow.keras.layers import Dense, Conv2D, Flatten
+from tensorflow.keras.layers import Dense, Conv2D, Flatten, Softmax, MaxPooling2D
 import os
 import pandas as pd
 import time
@@ -82,15 +82,14 @@ def generate_data_point(game, files):
 
 def get_model():
     os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
-    input_shape = (MAX_DATA_POINTS, SIZE, SIZE, 1)
+    input_shape = (SIZE, 9, 1)
     model = Sequential()
-    model.add(Conv2D(SIZE, (3, 3), input_shape = input_shape, activation='relu', padding='same'))
+    model.add(Conv2D(SIZE*SIZE, (3, 3), input_shape = input_shape, activation='relu'))
     model.add(Flatten())
-    model.add(Dense(400, activation='relu'))
-    model.add(Dense(200, activation='relu'))
     model.add(Dense(SIZE*SIZE))
+    model.add(Softmax())
 
-    return tf.keras.Sequential([model, tf.keras.layers.Softmax()])
+    return model
 
 
 
@@ -122,7 +121,7 @@ if __name__ == "__main__":
     
     print("\nStarting training....")
     model = get_model()
-    print(model.summary)
+    model.summary()
     input()
     for files in range(num_of_files):
         dataPoints = pd.read_csv(get_path(files), compression = 'gzip').to_numpy()
@@ -149,14 +148,12 @@ if __name__ == "__main__":
         probs = (probs[0]*100).reshape(SIZE, SIZE)
         np.set_printoptions(linewidth=180, precision=2, suppress=True)
         
-        prob2 = probs.copy()
-        while(True):
-            i, j = np.argwhere(prob2 == prob2.min())[0]
-            if game._covered_board[(i, j)] == True:
+        for x, y in np.vstack(np.unravel_index(probs.ravel().argsort(), probs.shape)).T:
+            if game._covered_board[x,y]:
+                i = x
+                j = y
                 break
-            else:
-                prob2[(i, j)] = 10000
-        
+                
         graphics.loadMap(game._board, game._covered_board, probs)
         graphics.loadColor(i, j, 'yellow')
         graphics.win.getMouse()
