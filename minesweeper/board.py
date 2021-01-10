@@ -21,7 +21,7 @@ class Board:
         GameOver = 1
         Won = 2
     
-    def __init__(self, grid_size=(10, 10), num_bombs=10, wallSize = 2):
+    def __init__(self, grid_size=(10, 10), num_bombs=10, wallSize = 0):
         self.wallSize = wallSize
         self.grid_size = grid_size
         self.num_bombs = num_bombs
@@ -61,9 +61,9 @@ class Board:
         self._state = Board.State.Playing
         self.first_clicked = False
         
-    def rand_click(self):
-        a = np.random.randint(self.wallSize, 10+self.wallSize)
-        b = np.random.randint(self.wallSize, 10+self.wallSize)
+    def rand_click(self, SIZE):
+        a = np.random.randint(self.wallSize, SIZE+self.wallSize)
+        b = np.random.randint(self.wallSize, SIZE+self.wallSize)
         self.tile_click((a, b))
         
         
