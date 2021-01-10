@@ -21,32 +21,35 @@ from pybind_testing import create_datapoint, generate_predict_features
 
 MAX_DATA_POINTS = 100000
 
-def create_datapoint_python(game, wallSize, neighRange):
-    data_point = []
-    for y in range(wallSize, 10+wallSize):
-        for x in range(wallSize, 10+wallSize):
-            features = np.empty((0,), dtype=int)
-            if game._covered_board[x, y] == True:
-                for i in range(x-neighRange, x+1+neighRange):
-                    for j in range(y-neighRange, y+1+neighRange):
-                        one_hot = np.zeros(10, dtype=int)
-                        if (i, j) == (x, y):
-                            continue
-                        if game._covered_board[i, j] == True:
-                            one_hot[9] = 1
-                            features = np.append(features, one_hot)
-                        #One hot with drop
-                        else:
-                            if(game._board[i, j] != -2):
-                                one_hot[int(game._board[i, j])] = 1
-                            features = np.append(features, one_hot)
-                if game._board[x, y] == -1:
-                    features = np.append(features, 1)
-                else:
-                    features = np.append(features, 0)
-                data_point.append(features)
+def create_datapoint_python(game, wallSize, neighRange, size):
+    # Makes a copy, just in case, to not cause shenanigans outside of function
+    b = game.board(with_walls=False).copy()
+    cb = game.covered_board(with_walls=False)
+    categories = np.arange(10).reshape(-1,1) # 0:8 is the value of the tile, 9 is covered. Bomb tiles not necessary due to redundant
+
+    labels = (b == -1).reshape(-1,1).astype(int)
+    
+    # Set covered tiles to 9
+    b[cb] = 9
+    features = (categories == b.ravel()).T.astype(int)
+
+    data_point = np.hstack((features, labels))
 
     return data_point
+
+def generate_features_predict_python(game, wallSize, neighRange, size):
+    # Makes a copy, just in case, to not cause shenanigans outside of function
+    b = game.board(with_walls=False).copy()
+    cb = game.covered_board(with_walls=False)
+    categories = np.arange(10).reshape(-1,1) # 0:8 is the value of the tile, 9 is covered. Bomb tiles not necessary due to redundant
+
+    # Set covered tiles to 9
+    b[cb] = 9
+    features = (categories == b.ravel()).T.astype(int)
+
+    idxs = np.vstack(cb.nonzero()).T + wallSize
+
+    return features, idxs
 
 # @profile
 def generate_data_point(game, num_bombs = 20, size = 10, num_data_points=1000, wallSize = 2, neighRange = 2):
@@ -77,11 +80,11 @@ def generate_data_point(game, num_bombs = 20, size = 10, num_data_points=1000, w
             b = np.random.randint(wallSize, 10+wallSize)
             game.tile_click((a, b))
             
-            # data_point_py = create_datapoint_python(game, wallSize, neighRange)
+            data_point = create_datapoint_python(game, wallSize, neighRange, size)
 
-            data_point = np.array(
-                create_datapoint(game._covered_board, game._board.astype(np.int32), wallSize, neighRange, size), dtype=np.uint8
-            ).reshape(-1, 801) # We have ((2*neighRange+1)*(2*neighRange+1) - 1)*10 = 800 features and 1 label
+            # data_point = np.array(
+            #     create_datapoint(game._covered_board, game._board.astype(np.int32), wallSize, neighRange, size), dtype=np.uint8
+            # ).reshape(-1, 801) # We have ((2*neighRange+1)*(2*neighRange+1) - 1)*10 = 800 features and 1 label
 
             dataPoints.append(data_point)
             curr_num_data_points += data_point.shape[0]#np.vstack(dataPoints).shape[0]
@@ -94,7 +97,7 @@ def generate_data_point(game, num_bombs = 20, size = 10, num_data_points=1000, w
         path = ('./data/dataPoints' + str(num_data_points)+'_'+str(num_bombs)+
                 '_'+str(size)+'_'+str(neighRange)+'_num='+str(files+1)+'.csv')
         start = time.time()
-        pd.DataFrame(dataPoints).to_csv(path, compression='gzip', chunksize = 200000)
+        pd.DataFrame(dataPoints).to_csv(path, compression='gzip', chunksize = 100000)
         
         # np.savetxt(path, dataPoints)
         print("Saving took: {0}s".format(round(time.time()-start, 1)))
@@ -122,7 +125,7 @@ if __name__ == "__main__":
     neighRange = 4
     wallSize = neighRange
     size = 10
-    num_data_points = 1000_00
+    num_data_points = 1_000_000
     getNewData = False
     num_bombs = 15
     
@@ -141,6 +144,7 @@ if __name__ == "__main__":
                 '_'+str(size)+'_'+str(neighRange)+'_num='+str(files+1)+'.csv'))
             
     except:
+        print("\n\n FSDGSDGSGS \n\n")
         generate_data_point(game, num_bombs = num_bombs, num_data_points=num_data_points,
                                             wallSize=wallSize, neighRange=neighRange)
     end = time.time()
@@ -167,36 +171,15 @@ if __name__ == "__main__":
     while(True):
         probs = []
 
-        (dataPoints, coords) = generate_predict_features(game._covered_board, game._board.astype(np.int32), wallSize, neighRange, size)
+        # (dataPoints, coords) = generate_predict_features(game._covered_board, game._board.astype(np.int32), wallSize, neighRange, size)
 
-        data_pointCpp = np.array(dataPoints)
-        dataPoints = dataPoints.reshape(-1, 800) # We have ((2*neighRange+1)*(2*neighRange+1) - 1)*10 = 800 features
+        dataPoints, coords = generate_features_predict_python(game, wallSize, neighRange, size)
 
-        # for y in range(wallSize, size+wallSize):
-        #     for x in range(wallSize, size+wallSize):
-        #         features = np.empty((0,), dtype=int)
-        #         if game._covered_board[x, y] == True:
-        #                 for i in range(x-wallSize, x+1+wallSize):
-        #                     for j in range(y-neighRange, y+1+neighRange):
-        #                         one_hot = np.zeros(10, dtype=int)
-        #                         if (i, j) == (x, y):
-        #                             continue
-        #                         if game._covered_board[i, j] == True:
-        #                             one_hot[9] = 1
-        #                             features = np.append(features, one_hot)
-        #                         #One hot with drop
-        #                         else:
-        #                             if(game._board[i, j] != -2):
-        #                                 one_hot[int(game._board[i, j])] = 1
-        #                             features = np.append(features, one_hot)
-        #                 dataPoints.append(features)
-        #                 coords.append((x, y))
+        # Dirty hack to make compatible with Audun code
+        coords = [tuple(coord) for coord in coords]
 
-        # dataPoints = np.array(dataPoints)
-        # coords = np.array(coords)
-
-        # assert np.allclose(data_pointCpp.ravel(), dataPoints.ravel()), "data_points not equal"
-        # assert np.allclose(coordsCpp.ravel(), coords.ravel()), "coords not equal"
+        # data_pointCpp = np.array(dataPoints)
+        # dataPoints = dataPoints.reshape(-1, 800) # We have ((2*neighRange+1)*(2*neighRange+1) - 1)*10 = 800 features
 
         probs = model.predict(dataPoints)[:,-1]*100
         graphics.loadMap(game._board, game._covered_board, probs, coords)

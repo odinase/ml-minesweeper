@@ -37,6 +37,22 @@ class Board:
 
     def set_state(self, state):
         self._state = state
+
+    def board(self, with_walls=True):
+        b = None
+        if with_walls:
+            b = self._board
+        else:
+            b = self._board[self.wallSize:(self.grid_size[0]+self.wallSize), self.wallSize:(self.grid_size[1]+self.wallSize)]
+        return b
+
+    def covered_board(self, with_walls=True):
+        cb = None
+        if with_walls:
+            cb = self._covered_board
+        else:
+            cb = self._covered_board[self.wallSize:(self.grid_size[0]+self.wallSize), self.wallSize:(self.grid_size[1]+self.wallSize)]
+        return cb
         
     def reset(self):
         self._covered_board = np.full((self.w+self.wallSize*2, self.h+self.wallSize*2), False)
