@@ -52,7 +52,7 @@ def generate_features_predict_python(game, wallSize, neighRange, size):
     return features, idxs
 
 # @profile
-def generate_data_point(game, num_bombs = 20, size = 10, num_data_points=1000, wallSize = 2, neighRange = 2):
+def generate_data_point(game, board, files_left, num_bombs = 20, size = 10, num_data_points=1000, wallSize = 2, neighRange = 2, ):
     print("\nGathering data...")
     game = Board(grid_size = (size, size), num_bombs = num_bombs, wallSize = wallSize)
     count = 0
@@ -68,18 +68,16 @@ def generate_data_point(game, num_bombs = 20, size = 10, num_data_points=1000, w
         start = time.time()
         while(curr_num_data_points < num_data_points):
             count+= 1
-            if count == 100:
-                count = 0
-                decimal = curr_num_data_points/num_data_points
+            decimal = curr_num_data_points/num_data_points
+            if count < decimal:
+                count = int(np.ceil(decimal))
                 print("We're {0}% of the way with file {2} out of {3} ETA: {1}"
                         .format(round(decimal*100, 1),
                                 round(((((num_of_files/(files+1)/(decimal))))*(time.time()-start) - 
                                         (time.time()-start)), 0),
                         files+1, num_of_files))
-            a = np.random.randint(wallSize, 10+wallSize)
-            b = np.random.randint(wallSize, 10+wallSize)
-            game.tile_click((a, b))
             
+            game.rand_click()
             data_point = create_datapoint_python(game, wallSize, neighRange, size)
 
             # data_point = np.array(
@@ -87,9 +85,11 @@ def generate_data_point(game, num_bombs = 20, size = 10, num_data_points=1000, w
             # ).reshape(-1, 801) # We have ((2*neighRange+1)*(2*neighRange+1) - 1)*10 = 800 features and 1 label
 
             dataPoints.append(data_point)
-            curr_num_data_points += data_point.shape[0]#np.vstack(dataPoints).shape[0]
-            # assert np.allclose(np.array(dataPoints).ravel(), np.vstack(dataPointsCpp).ravel()), "Smell"
+            curr_num_data_points += data_point.shape[0]
             game.reset()
+            
+            
+            
         end = time.time()
         print(f"done, spent {0}s".format(round(end-start, 1)))
         dataPoints = np.vstack(dataPoints)
@@ -133,11 +133,9 @@ if __name__ == "__main__":
     path = ('./data/dataPoints' + str(num_data_points)+'_'+str(num_bombs)+
             '_'+str(size)+'_'+str(neighRange)+'.csv')
     
-    if num_data_points > MAX_DATA_POINTS:
-        num_of_files = int(num_data_points/MAX_DATA_POINTS)
-    else:
-        num_of_files = 1
+    num_of_files = int(np.ceil(num_data_points/MAX_DATA_POINTS))
     start = time.time()
+    
     try:
         for files in range(num_of_files):
             assert os.path.exists(('./data/dataPoints' + str(num_data_points)+'_'+str(num_bombs)+
@@ -166,8 +164,9 @@ if __name__ == "__main__":
     a = np.random.randint(wallSize, size+wallSize)
     b = np.random.randint(wallSize, size+wallSize)
     game.tile_click((a, b))
-    
     graphics = GUI(size=size, wallSize=wallSize)
+    
+    
     while(True):
         probs = []
 

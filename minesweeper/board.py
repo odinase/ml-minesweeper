@@ -61,6 +61,11 @@ class Board:
         self._state = Board.State.Playing
         self.first_clicked = False
         
+    def rand_click(self):
+        a = np.random.randint(self.wallSize, 10+self.wallSize)
+        b = np.random.randint(self.wallSize, 10+self.wallSize)
+        self.tile_click((a, b))
+        
         
     def __make_board(self, coord):
         # Place bombs randomly on grid
