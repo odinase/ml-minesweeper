@@ -9,7 +9,7 @@ import os
 import pandas as pd
 import time
 
-#from pybind_testing import create_datapoint, generate_predict_features
+from pybind_testing import create_datapoint, generate_predict_features
 
 
 # import profilehooks
@@ -24,6 +24,7 @@ NUM_BOMBS = 15
 SIZE = 10
 ONE_HOT_ENCODING = True
 DIM = 9 if ONE_HOT_ENCODING else 1
+NEIGHRANGE = 2
 
 def create_datapoint_python(game):
     # Makes a copy, just in case, to not cause shenanigans outside of function
@@ -79,7 +80,8 @@ def generate_data_point(game, files):
         if game.get_state() == Board.State.GameOver:
             game.reset()
         else:
-            dataPoints.append(create_datapoint_python(game))
+            datapoint = create_datapoint(game._covered_board, game._board.astype(np.int32), 0, NEIGHRANGE, SIZE)
+            dataPoints.append(datapoint)
             curr_num_data_points += 1
     dataPoints = np.vstack(dataPoints)
 
@@ -165,9 +167,12 @@ def pipeline(game):
         while(True):
             probs = []
     
-            dataPoint = generate_features_predict_python(game)
+            (dataPoints, coords) = generate_predict_features(game._covered_board, game._board.astype(np.int32), 0, NEIGHRANGE, SIZE)
+            
+            print(dataPoints)
+
     
-            probs = model.predict_on_batch(dataPoint.reshape(1, -1).reshape(1, SIZE, SIZE, DIM))
+            probs = model.predict_on_batch(dataPoints)
             
             probs = (probs[0]*100).reshape(SIZE, SIZE)
             
@@ -189,6 +194,7 @@ def pipeline(game):
     
     
 if __name__ == "__main__":
+    print("Hey")
     num_data_points = MAX_DATA_POINTS*1
     getNewData = False
     
