@@ -19,7 +19,8 @@ import time
 # profile = line_profiler.LineProfiler()
 # atexit.register(profile.print_stats)
 
-MAX_DATA_POINTS = 100000
+MAX_DATA_POINTS = int(np.ceil(100_000*1.3))
+TOTAL_DATA_POINTS = int(np.ceil(MAX_DATA_POINTS*2))
 NUM_BOMBS = 15
 SIZE = 10
 ONE_HOT_ENCODING = True
@@ -189,12 +190,12 @@ def pipeline(game):
     
     
 if __name__ == "__main__":
-    num_data_points = MAX_DATA_POINTS*1
+    # num_data_points = MAX_DATA_POINTS*1
     getNewData = False
     
     game = Board(num_bombs = NUM_BOMBS, grid_size=(SIZE, SIZE))
     
-    num_of_files = int(np.ceil(num_data_points/MAX_DATA_POINTS))
+    num_of_files = int(np.ceil(TOTAL_DATA_POINTS/MAX_DATA_POINTS))
     start = time.time()
     
     
